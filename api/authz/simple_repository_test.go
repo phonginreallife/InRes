@@ -23,6 +23,7 @@ func TestSimpleOrgRepository_Create(t *testing.T) {
 	repo := NewSimpleOrgRepository(db)
 	ctx := context.Background()
 
+	// Note: Implementation converts empty Settings to nil for PostgreSQL JSON type
 	tests := []struct {
 		name     string
 		org      *Organization
@@ -40,7 +41,7 @@ func TestSimpleOrgRepository_Create(t *testing.T) {
 			},
 			mockFunc: func() {
 				mock.ExpectExec("INSERT INTO organizations").
-					WithArgs("org-1", "Test Org", "test-org", "A test organization", "", true, sqlmock.AnyArg(), sqlmock.AnyArg()).
+					WithArgs("org-1", "Test Org", "test-org", "A test organization", nil, true, sqlmock.AnyArg(), sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			wantErr: false,
@@ -54,7 +55,7 @@ func TestSimpleOrgRepository_Create(t *testing.T) {
 			},
 			mockFunc: func() {
 				mock.ExpectExec("INSERT INTO organizations").
-					WithArgs(sqlmock.AnyArg(), "Auto ID Org", "auto-id-org", "", "", true, sqlmock.AnyArg(), sqlmock.AnyArg()).
+					WithArgs(sqlmock.AnyArg(), "Auto ID Org", "auto-id-org", "", nil, true, sqlmock.AnyArg(), sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			wantErr: false,
@@ -273,6 +274,7 @@ func TestSimpleOrgRepository_Update(t *testing.T) {
 	repo := NewSimpleOrgRepository(db)
 	ctx := context.Background()
 
+	// Note: Implementation converts empty Settings to nil for PostgreSQL JSON type
 	tests := []struct {
 		name     string
 		org      *Organization
@@ -290,7 +292,7 @@ func TestSimpleOrgRepository_Update(t *testing.T) {
 			},
 			mockFunc: func() {
 				mock.ExpectExec("UPDATE organizations").
-					WithArgs("org-1", "Updated Org", "updated-org", "Updated description", "", true, sqlmock.AnyArg()).
+					WithArgs("org-1", "Updated Org", "updated-org", "Updated description", nil, true, sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			wantErr: false,
@@ -304,7 +306,7 @@ func TestSimpleOrgRepository_Update(t *testing.T) {
 			},
 			mockFunc: func() {
 				mock.ExpectExec("UPDATE organizations").
-					WithArgs("org-999", "Nonexistent", "nonexistent", "", "", false, sqlmock.AnyArg()).
+					WithArgs("org-999", "Nonexistent", "nonexistent", "", nil, false, sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(0, 0))
 			},
 			wantErr: true,
@@ -495,6 +497,7 @@ func TestSimpleProjectRepository_Create(t *testing.T) {
 	repo := NewSimpleProjectRepository(db)
 	ctx := context.Background()
 
+	// Note: Implementation converts empty Settings to nil for PostgreSQL JSON type
 	tests := []struct {
 		name     string
 		project  *Project
@@ -513,7 +516,7 @@ func TestSimpleProjectRepository_Create(t *testing.T) {
 			},
 			mockFunc: func() {
 				mock.ExpectExec("INSERT INTO projects").
-					WithArgs("proj-1", "org-1", "Test Project", "test-project", "A test project", "", true, sqlmock.AnyArg(), sqlmock.AnyArg()).
+					WithArgs("proj-1", "org-1", "Test Project", "test-project", "A test project", nil, true, sqlmock.AnyArg(), sqlmock.AnyArg()).
 					WillReturnResult(sqlmock.NewResult(1, 1))
 			},
 			wantErr: false,

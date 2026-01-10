@@ -159,7 +159,7 @@ export default function SearchModal({ isOpen, onClose }) {
             {/* No Results */}
             {query && filteredActions.length === 0 && filteredRecent.length === 0 && (
               <div className="p-8 text-center text-gray-500">
-                <p>No results found for "{query}"</p>
+                <p>No results found for &quot;{query}&quot;</p>
               </div>
             )}
           </div>

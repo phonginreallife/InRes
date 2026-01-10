@@ -616,7 +616,7 @@ export default function IncidentTrendsChart({ refreshKey = 0 }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </div>
-                <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">Ack'd</span>
+                <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase">Ack&apos;d</span>
               </div>
               <p className="text-xl font-bold text-gray-900 dark:text-white">
                 {trends?.metrics?.acknowledged_count || 0}

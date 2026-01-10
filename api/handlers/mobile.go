@@ -575,7 +575,7 @@ func generateMobileSessionToken() (string, error) {
 
 func generateSessionID() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	_, _ = rand.Read(bytes)
 	return "sess_" + hex.EncodeToString(bytes)
 }
 

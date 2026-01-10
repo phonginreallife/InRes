@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/phonginreallife/inres/db"
 	"github.com/phonginreallife/inres/services"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type SupabaseAuthMiddleware struct {
@@ -235,7 +237,7 @@ func (m *SupabaseAuthMiddleware) extractTeamFromClaims(claims *services.Supabase
 		domain := emailParts[1]
 		// Remove common email providers to get company domain
 		if domain != "gmail.com" && domain != "yahoo.com" && domain != "hotmail.com" && domain != "outlook.com" {
-			return strings.Title(strings.Split(domain, ".")[0])
+			return cases.Title(language.English).String(strings.Split(domain, ".")[0])
 		}
 	}
 

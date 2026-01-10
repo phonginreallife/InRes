@@ -209,13 +209,13 @@ func ParseUptimeRatios(ratios string) (day1, day7, day30, allTime float64) {
 
 	parts := strings.Split(ratios, "-")
 	if len(parts) >= 1 {
-		fmt.Sscanf(parts[0], "%f", &day1)
+		_, _ = fmt.Sscanf(parts[0], "%f", &day1)
 	}
 	if len(parts) >= 2 {
-		fmt.Sscanf(parts[1], "%f", &day7)
+		_, _ = fmt.Sscanf(parts[1], "%f", &day7)
 	}
 	if len(parts) >= 3 {
-		fmt.Sscanf(parts[2], "%f", &day30)
+		_, _ = fmt.Sscanf(parts[2], "%f", &day30)
 	}
 	// Use 30-day as all-time approximation
 	allTime = day30

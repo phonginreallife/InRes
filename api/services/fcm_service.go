@@ -122,7 +122,7 @@ func (s *FCMService) SendAlertNotification(alert *db.Alert) error {
 
 	dataMap := make(map[string]string)
 	dataBytes, _ := json.Marshal(notificationData)
-	json.Unmarshal(dataBytes, &dataMap)
+	_ = json.Unmarshal(dataBytes, &dataMap)
 
 	// Create FCM message
 	message := &messaging.Message{
@@ -227,7 +227,7 @@ func (s *FCMService) SendNotificationToOnCallUsers(alert *db.Alert) error {
 
 	dataMap := make(map[string]string)
 	dataBytes, _ := json.Marshal(notificationData)
-	json.Unmarshal(dataBytes, &dataMap)
+	_ = json.Unmarshal(dataBytes, &dataMap)
 
 	// Create multicast message
 	message := &messaging.MulticastMessage{
@@ -251,7 +251,7 @@ func (s *FCMService) SendNotificationToOnCallUsers(alert *db.Alert) error {
 	}
 
 	// Send multicast message
-	response, err := s.client.SendMulticast(context.Background(), message)
+	response, err := s.client.SendEachForMulticast(context.Background(), message)
 	if err != nil {
 		log.Printf("Error sending multicast FCM message: %v", err)
 		return err

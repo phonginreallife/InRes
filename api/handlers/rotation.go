@@ -139,7 +139,7 @@ func (h *RotationHandler) GetRotationPreview(c *gin.Context) {
 	// Get weeks parameter (default 4)
 	weeks := 4
 	if weeksStr := c.Query("weeks"); weeksStr != "" {
-		if w, err := c.GetQuery("weeks"); err == false {
+		if w, exists := c.GetQuery("weeks"); exists {
 			_ = w // weeks query exists, use default
 		}
 	}

@@ -231,7 +231,7 @@ func (h *MonitorHandler) UpdateMonitor(c *gin.Context) {
 
 	// Get deployment ID for sync
 	var deploymentID uuid.UUID
-	h.db.QueryRow("SELECT deployment_id FROM monitors WHERE id = $1", id).Scan(&deploymentID)
+	_ = h.db.QueryRow("SELECT deployment_id FROM monitors WHERE id = $1", id).Scan(&deploymentID)
 	m.DeploymentID = deploymentID
 
 	go h.syncMonitorToD1(deploymentID, m)
@@ -249,7 +249,7 @@ func (h *MonitorHandler) DeleteMonitor(c *gin.Context) {
 
 	// Get deployment ID before delete
 	var deploymentID uuid.UUID
-	h.db.QueryRow("SELECT deployment_id FROM monitors WHERE id = $1", id).Scan(&deploymentID)
+	_ = h.db.QueryRow("SELECT deployment_id FROM monitors WHERE id = $1", id).Scan(&deploymentID)
 
 	_, err = h.db.Exec("DELETE FROM monitors WHERE id = $1", id)
 	if err != nil {

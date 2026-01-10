@@ -13,8 +13,6 @@ type Config struct {
 	DatabaseURL       string `mapstructure:"database_url"`
 	RedisURL          string `mapstructure:"redis_url"`
 	Port              string `mapstructure:"port"`
-	inresAPIURL       string `mapstructure:"inres_api_url"`
-	inresWebURL       string `mapstructure:"inres_web_url"`
 	PublicURL         string `mapstructure:"public_url"`
 	AgentURL          string `mapstructure:"agent_url"`
 	BackendURL        string `mapstructure:"backend_url"`
@@ -94,31 +92,31 @@ func LoadConfig(path string) error {
 
 	// Bind standard environment variables (Docker/deploy compatibility)
 	// This allows using standard keys like DATABASE_URL instead of inres_DATABASE_URL
-	v.BindEnv("database_url", "DATABASE_URL")
-	v.BindEnv("redis_url", "REDIS_URL")
-	v.BindEnv("port", "PORT")
+	_ = v.BindEnv("database_url", "DATABASE_URL")
+	_ = v.BindEnv("redis_url", "REDIS_URL")
+	_ = v.BindEnv("port", "PORT")
 
 	// Bind Supabase Env Vars
-	v.BindEnv("supabase_url", "SUPABASE_URL")
-	v.BindEnv("mobile_supabase_url", "MOBILE_SUPABASE_URL")
-	v.BindEnv("supabase_anon_key", "SUPABASE_ANON_KEY")
-	v.BindEnv("supabase_service_role_key", "SUPABASE_SERVICE_ROLE_KEY")
-	v.BindEnv("supabase_jwt_secret", "SUPABASE_JWT_SECRET")
+	_ = v.BindEnv("supabase_url", "SUPABASE_URL")
+	_ = v.BindEnv("mobile_supabase_url", "MOBILE_SUPABASE_URL")
+	_ = v.BindEnv("supabase_anon_key", "SUPABASE_ANON_KEY")
+	_ = v.BindEnv("supabase_service_role_key", "SUPABASE_SERVICE_ROLE_KEY")
+	_ = v.BindEnv("supabase_jwt_secret", "SUPABASE_JWT_SECRET")
 
 	// Bind External Services Env Vars
-	v.BindEnv("anthropic_api_key", "ANTHROPIC_API_KEY")
-	v.BindEnv("slack_bot_token", "SLACK_BOT_TOKEN")
-	v.BindEnv("slack_app_token", "SLACK_APP_TOKEN")
+	_ = v.BindEnv("anthropic_api_key", "ANTHROPIC_API_KEY")
+	_ = v.BindEnv("slack_bot_token", "SLACK_BOT_TOKEN")
+	_ = v.BindEnv("slack_app_token", "SLACK_APP_TOKEN")
 
 	// Bind Notification Gateway Env Vars
-	v.BindEnv("notification_gateway.url", "inres_CLOUD_URL")
-	v.BindEnv("notification_gateway.api_token", "inres_CLOUD_TOKEN")
-	v.BindEnv("notification_gateway.instance_id", "inres_INSTANCE_ID")
-	v.BindEnv("webhook_api_base_url", "WEBHOOK_API_BASE_URL")
+	_ = v.BindEnv("notification_gateway.url", "inres_CLOUD_URL")
+	_ = v.BindEnv("notification_gateway.api_token", "inres_CLOUD_TOKEN")
+	_ = v.BindEnv("notification_gateway.instance_id", "inres_INSTANCE_ID")
+	_ = v.BindEnv("webhook_api_base_url", "WEBHOOK_API_BASE_URL")
 
 	// Bind AI Incident Analytics Env Vars
-	v.BindEnv("ai_incident_analytics.enabled", "AI_PILOT_ENABLED")
-	v.BindEnv("ai_incident_analytics.model", "AI_PILOT_MODEL")
+	_ = v.BindEnv("ai_incident_analytics.enabled", "AI_PILOT_ENABLED")
+	_ = v.BindEnv("ai_incident_analytics.model", "AI_PILOT_MODEL")
 
 	v.AutomaticEnv()
 

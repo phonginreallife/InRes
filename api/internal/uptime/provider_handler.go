@@ -315,7 +315,7 @@ func (h *ProviderHandler) syncProvider(providerID uuid.UUID) {
 	}
 
 	// Update last sync time
-	h.db.Exec(`UPDATE uptime_providers SET last_sync_at = NOW() WHERE id = $1`, providerID)
+	_, _ = h.db.Exec(`UPDATE uptime_providers SET last_sync_at = NOW() WHERE id = $1`, providerID)
 }
 
 // syncUptimeRobot syncs monitors from UptimeRobot

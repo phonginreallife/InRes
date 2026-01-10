@@ -74,7 +74,7 @@ export default function ProjectDetailPage() {
       <div className="p-6">
         <div className="text-center py-12">
           <h2 className="text-xl font-semibold text-text-primary mb-2">Project Not Found</h2>
-          <p className="text-text-secondary mb-4">The project you're looking for doesn't exist or you don't have access to it.</p>
+          <p className="text-text-secondary mb-4">The project you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.</p>
           <Link
             href="/projects"
             className="px-4 py-2 bg-brand-primary hover:bg-brand-primary/80 rounded-lg text-white text-sm transition-colors"

@@ -341,6 +341,7 @@ func TestSimpleMembershipManager_GetResourceMembers(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
+	// The implementation uses a JOIN query with user details
 	tests := []struct {
 		name         string
 		resourceType ResourceType
@@ -354,12 +355,12 @@ func TestSimpleMembershipManager_GetResourceMembers(t *testing.T) {
 			resourceType: ResourceOrg,
 			resourceID:   "org-1",
 			mockFunc: func() {
-				mock.ExpectQuery("SELECT id, user_id, resource_type, resource_id, role, created_at, updated_at").
+				mock.ExpectQuery("SELECT .* FROM memberships m LEFT JOIN users u").
 					WithArgs(ResourceOrg, "org-1").
-					WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "resource_type", "resource_id", "role", "created_at", "updated_at", "invited_by"}).
-						AddRow("mem-1", "user-1", "org", "org-1", "owner", now, now, "").
-						AddRow("mem-2", "user-2", "org", "org-1", "admin", now, now, "user-1").
-						AddRow("mem-3", "user-3", "org", "org-1", "member", now, now, "user-1"))
+					WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "resource_type", "resource_id", "role", "created_at", "updated_at", "invited_by", "name", "email"}).
+						AddRow("mem-1", "user-1", "org", "org-1", "owner", now, now, "", "User One", "user1@test.com").
+						AddRow("mem-2", "user-2", "org", "org-1", "admin", now, now, "user-1", "User Two", "user2@test.com").
+						AddRow("mem-3", "user-3", "org", "org-1", "member", now, now, "user-1", "User Three", "user3@test.com"))
 			},
 			wantLen: 3,
 			wantErr: false,
@@ -369,9 +370,9 @@ func TestSimpleMembershipManager_GetResourceMembers(t *testing.T) {
 			resourceType: ResourceProject,
 			resourceID:   "proj-empty",
 			mockFunc: func() {
-				mock.ExpectQuery("SELECT id, user_id, resource_type, resource_id, role, created_at, updated_at").
+				mock.ExpectQuery("SELECT .* FROM memberships m LEFT JOIN users u").
 					WithArgs(ResourceProject, "proj-empty").
-					WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "resource_type", "resource_id", "role", "created_at", "updated_at", "invited_by"}))
+					WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "resource_type", "resource_id", "role", "created_at", "updated_at", "invited_by", "name", "email"}))
 			},
 			wantLen: 0,
 			wantErr: false,
