@@ -1,0 +1,92 @@
+# version: "3.9"
+
+services:
+  ai:
+    container_name: inres-ai
+    platform: linux/amd64
+    image: ghcr.io/inresops/inres-ai:latest
+    expose:
+      - "8002"
+    ports:
+      - "8002:8002"
+    volumes:
+      - claude_data:/root/.claude
+      - ./volumes/config/dev.config.yaml:/app/config.yaml
+    environment:
+      - inres_CONFIG_PATH=/app/config.yaml
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL:-http://supabase_kong_inres-oss:8000}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@supabase_db_inres-oss:5432/postgres?sslmode=disable}
+    restart: unless-stopped
+    networks:
+      - inres-network
+      - supabase_network_inres-oss
+
+  api:
+    container_name: inres-api
+    platform: linux/amd64
+    image: ghcr.io/inresops/inres-api:latest
+    expose:
+      - "8080"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./volumes/config/dev.config.yaml:/app/config.yaml
+    environment:
+      - inres_CONFIG_PATH=/app/config.yaml
+    restart: unless-stopped
+    networks:
+      - inres-network
+      - supabase_network_inres-oss
+
+  slack-worker:
+    container_name: inres-slack-worker
+    platform: linux/amd64
+    image: ghcr.io/inresops/inres-slack-worker:latest
+    volumes:
+      - ./volumes/config/dev.config.yaml:/app/config.yaml
+    restart: unless-stopped
+    networks:
+      - inres-network
+
+  web:
+    container_name: inres-web
+    platform: linux/amd64
+    image: ghcr.io/inresops/inres-web:latest
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - inres-network
+
+  kong:
+    container_name: kong
+    platform: linux/amd64
+    image: kong:2.8.1
+    ports:
+      - "8000:8000/tcp"
+    volumes:
+      - ./volumes/api/kong.yaml:/home/kong/temp.yml:ro,z
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+    restart: unless-stopped
+    networks:
+      - inres-network
+    entrypoint: bash -c 'eval "echo \"$$(cat ~/temp.yml)\"" > ~/kong.yml && /docker-entrypoint.sh kong docker-start'
+
+networks:
+  inres-network:
+    driver: bridge
+  supabase_network_inres-oss:
+    external: true
+
+volumes:
+  claude_data:

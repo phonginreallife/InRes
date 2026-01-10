@@ -1,0 +1,51 @@
+{{- $root := . -}}
+{{- range $name, $comp := ( .Values.components | default dict ) }}
+{{- if and $comp.persistence $comp.persistence.enabled }}
+{{- $pvcSuffix := "data" }}
+{{- if eq $name "ai" }}
+  {{- $pvcSuffix = "workspaces" }}
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "inres.componentFullname" (dict "root" $root "name" $name) }}-{{ $pvcSuffix }}
+  labels:
+    {{- include "inres.componentLabels" (dict "root" $root "name" $name) | nindent 4 }}
+spec:
+  accessModes:
+    - {{ $comp.persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if $comp.persistence.storageClass }}
+  {{- if (eq "-" $comp.persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: "{{ $comp.persistence.storageClass }}"
+  {{- end }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $comp.persistence.size | default "10Gi" }}
+---
+{{- end }}
+{{- if and $comp.claudePersistence $comp.claudePersistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "inres.componentFullname" (dict "root" $root "name" $name) }}-claude
+  labels:
+    {{- include "inres.componentLabels" (dict "root" $root "name" $name) | nindent 4 }}
+spec:
+  accessModes:
+    - {{ $comp.claudePersistence.accessMode | default "ReadWriteOnce" }}
+  {{- if $comp.claudePersistence.storageClass }}
+  {{- if (eq "-" $comp.claudePersistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: "{{ $comp.claudePersistence.storageClass }}"
+  {{- end }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $comp.claudePersistence.size | default "5Gi" }}
+---
+{{- end }}
+{{- end }}

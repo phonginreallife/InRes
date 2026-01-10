@@ -1,0 +1,364 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   BRAND DESIGN SYSTEM
+   Light & Dark theme with blue accents
+   ============================================ */
+
+/* Default: Dark Theme */
+:root {
+  --background: #060d1f;
+  --foreground: #f1f5f9;
+  --surface: #0d1b3e;
+  --surface-hover: #152347;
+  --border: #1e3a5f;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  /* Brand colors */
+  --brand-primary: #0066CC;
+  --brand-secondary: #00bcd4;
+  --brand-gradient: linear-gradient(135deg, #0066CC 0%, #00bcd4 100%);
+  
+  color-scheme: dark;
+}
+
+/* Light Theme */
+html.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #0066CC 0%, #00bcd4 100%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #0052a3 0%, #0097a7 100%);
+}
+
+/* Light mode scrollbar */
+html.light ::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+/* ============================================
+   COMPONENT STYLES
+   ============================================ */
+
+@layer components {
+  /* Brand-style card - Dark */
+  .card-brand {
+    @apply backdrop-blur-sm rounded-xl;
+    @apply shadow-card hover:shadow-card-hover transition-all duration-300;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  
+  .card-brand:hover {
+    border-color: rgba(0, 102, 204, 0.3);
+  }
+
+  /* Gradient border card */
+  .card-gradient {
+    @apply relative backdrop-blur-sm rounded-xl overflow-hidden;
+    background: var(--surface);
+  }
+  
+  .card-gradient::before {
+    content: '';
+    @apply absolute inset-0 p-[1px] rounded-xl -z-10;
+    background: linear-gradient(135deg, rgba(0, 102, 204, 0.5) 0%, rgba(0, 188, 212, 0.5) 100%);
+  }
+
+  /* Brand-style button */
+  .btn-brand {
+    @apply px-6 py-2.5 rounded-lg font-medium transition-all duration-200;
+    @apply bg-gradient-to-r from-primary-500 to-primary-600;
+    @apply hover:from-primary-600 hover:to-primary-700;
+    @apply text-white shadow-glow hover:shadow-glow-lg;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50;
+  }
+
+  .btn-primary-outline {
+    @apply px-6 py-2.5 rounded-lg font-medium transition-all duration-200;
+    @apply bg-transparent border border-primary-500 text-primary-500;
+    @apply hover:bg-primary-500/10 hover:border-primary-400;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50;
+  }
+
+  .btn-accent {
+    @apply px-6 py-2.5 rounded-lg font-medium transition-all duration-200;
+    @apply bg-gradient-to-r from-accent-500 to-accent-600;
+    @apply hover:from-accent-600 hover:to-accent-700;
+    @apply text-white shadow-glow-accent;
+    @apply focus:outline-none focus:ring-2 focus:ring-accent-500/50;
+  }
+
+  /* Input fields */
+  .input-brand {
+    @apply w-full px-4 py-2.5 rounded-lg transition-all duration-200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+  
+  .input-brand::placeholder {
+    color: var(--text-muted);
+  }
+  
+  .input-brand:focus {
+    @apply outline-none ring-2 ring-primary-500/20;
+    border-color: #0066CC;
+  }
+  
+  .input-brand:hover {
+    border-color: var(--text-muted);
+  }
+
+  /* Navigation link */
+  .nav-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200;
+    color: var(--text-secondary);
+  }
+  
+  .nav-link:hover {
+    color: var(--text-primary);
+    background: var(--surface-hover);
+  }
+
+  .nav-link-active {
+    @apply border-l-2 border-primary-500;
+    background: linear-gradient(90deg, rgba(0, 102, 204, 0.2) 0%, transparent 100%);
+    color: var(--text-primary);
+  }
+
+  /* Status badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-success-500/20 text-success-500 border border-success-500/30;
+  }
+
+  .badge-warning {
+    @apply bg-warning-500/20 text-warning-500 border border-warning-500/30;
+  }
+
+  .badge-danger {
+    @apply bg-danger-500/20 text-danger-500 border border-danger-500/30;
+  }
+
+  .badge-info {
+    @apply bg-primary-500/20 text-primary-500 border border-primary-500/30;
+  }
+
+  /* Data table */
+  .table-brand {
+    @apply w-full text-sm;
+  }
+
+  .table-brand thead {
+    @apply uppercase text-xs tracking-wider;
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+  }
+
+  .table-brand th {
+    @apply px-4 py-3 text-left font-semibold;
+  }
+
+  .table-brand tbody tr {
+    @apply transition-colors;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .table-brand tbody tr:hover {
+    background: var(--surface-hover);
+  }
+
+  .table-brand td {
+    @apply px-4 py-3;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply card-brand p-6;
+  }
+
+  .stat-value {
+    @apply text-3xl font-bold;
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .stat-label {
+    @apply text-sm mt-1;
+    color: var(--text-secondary);
+  }
+
+  /* Section headers */
+  .section-title {
+    @apply text-xl font-semibold mb-4;
+    color: var(--text-primary);
+  }
+
+  .section-subtitle {
+    @apply text-sm;
+    color: var(--text-secondary);
+  }
+
+  /* Glow effects */
+  .glow-blue {
+    @apply shadow-[0_0_15px_rgba(0,102,204,0.3)];
+  }
+
+  .glow-cyan {
+    @apply shadow-[0_0_15px_rgba(0,188,212,0.3)];
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(0, 102, 204, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 102, 204, 0.4);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(0,102,204,0.1) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ============================================
+   UTILITY OVERRIDES
+   ============================================ */
+
+/* Custom selection color */
+::selection {
+  background: rgba(0, 102, 204, 0.3);
+  color: var(--text-primary);
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  outline: 2px solid #0066CC;
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for theme switching */
+* {
+  transition-property: background-color, border-color, color;
+  transition-duration: 200ms;
+  transition-timing-function: ease-out;
+}
+
+/* Remove transition on certain elements */
+button, a, input, select, textarea {
+  transition-property: all;
+}

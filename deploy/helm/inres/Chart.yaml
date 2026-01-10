@@ -1,0 +1,41 @@
+apiVersion: v2
+name: inres
+description: InRes - Intelligent Incident Response System Helm Chart
+
+# This chart deploys the complete InRes stack including:
+# - AI Service (AI processing and WebSocket chat)
+# - API Service (Main backend API)
+# - Worker (Background task processor)
+# - Slack Worker (Slack integration)
+# - Web Frontend (Next.js UI)
+# - Kong API Gateway (Traffic routing and management)
+
+type: application
+
+# Chart version - increment when making changes to the chart
+version: 0.1.0
+
+# Application version - the version of InRes being deployed
+appVersion: "1.0.0"
+
+# Maintainers
+maintainers:
+  - name: InRes Team
+    email: team@inres.io
+
+# Keywords for chart discovery
+keywords:
+  - inres
+  - incident-response
+  - alerting
+  - monitoring
+  - oncall
+  - ai
+  - api-gateway
+
+# Home page
+home: https://github.com/phonginreallife/InRes
+
+# Sources
+sources:
+  - https://github.com/phonginreallife/InRes

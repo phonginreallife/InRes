@@ -1,0 +1,14 @@
+name = "inres-uptime-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["* * * * *"] # Run every minute
+
+# D1 Database for storing monitors and logs
+# This is the only storage - no KV needed (simpler, cheaper)
+[[d1_databases]]
+binding = "inres_DB"
+database_name = "inres_DB"
+database_id = "replace-me-d1-id"

@@ -1,0 +1,10 @@
+<svg id="export-svg" width="200" height="200" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M35 25C35 25 65 25 65 45C65 65 35 65 35 75C35 85 65 85 65 85" stroke="url(#hero_grad_export)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <circle cx="65" cy="85" r="8" fill="#10B981"></circle>
+                    <defs>
+                        <linearGradient id="hero_grad_export" x1="35" y1="25" x2="65" y2="85" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#3B82F6"></stop>
+                            <stop offset="1" stop-color="#10B981"></stop>
+                        </linearGradient>
+                    </defs>
+                </svg>

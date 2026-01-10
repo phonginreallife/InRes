@@ -1,0 +1,159 @@
+{{- $root := . -}}
+{{- range $name, $comp := ( .Values.components | default dict ) }}
+{{- $repository := $comp.image.repository | default $root.Values.image.repository }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "inres.componentFullname" (dict "root" $root "name" $name) }}
+  labels:
+    {{- include "inres.componentLabels" (dict "root" $root "name" $name) | nindent 4 }}
+spec:
+  {{- if not $root.Values.autoscaling.enabled }}
+  replicas: {{ default $root.Values.replicaCount $comp.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "inres.componentSelectorLabels" (dict "root" $root "name" $name) | nindent 6 }}
+  template:
+    metadata:
+      {{- with $root.Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "inres.componentLabels" (dict "root" $root "name" $name) | nindent 8 }}
+        {{- with $root.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "inres.serviceAccountName" $root }}
+      {{- with $root.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          {{- with $root.Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{  $repository }}{{ $comp.image.name }}:{{ $comp.image.tag | default $root.Values.image.tag }}"
+          imagePullPolicy: {{ default $root.Values.image.pullPolicy $comp.image.pullPolicy | default "IfNotPresent" }}
+          {{- if eq $name "kong" }}
+          {{- if and $comp.service $comp.service.ports }}
+          ports:
+            {{- range $comp.service.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: {{ .protocol }}
+            {{- end }}
+          {{- end }}
+          {{- else }}
+          {{- if and $comp.service $comp.service.port }}
+          ports:
+            - name: http
+              containerPort: {{ $comp.service.port }}
+              protocol: TCP
+          {{- end }}
+          {{- end }}
+          {{- with $comp.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if eq $name "kong" }}
+          {{- if and $comp.configMap $comp.configMap.enabled }}
+          command:
+            - "/bin/bash"
+            - "-c"
+            - 'eval "echo \"$$(cat /home/kong/temp.yml)\"" > /home/kong/kong.yml && /docker-entrypoint.sh kong docker-start'
+          {{- end }}
+          {{- end }}
+          {{- with $comp.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $comp.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $comp.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if $comp.resources }}
+          resources:
+            {{- toYaml $comp.resources | nindent 12 }}
+          {{- else if $root.Values.resources }}
+          resources:
+            {{- toYaml $root.Values.resources | nindent 12 }}
+          {{- end }}
+          {{- if eq $name "kong" }}
+          {{- if and $comp.configMap $comp.configMap.enabled }}
+          volumeMounts:
+            - name: kong-config
+              mountPath: /home/kong/temp.yml
+              subPath: temp.yml
+              readOnly: true
+          {{- end }}
+          {{- else }}
+          {{- $volumeMounts := list }}
+          {{- if $comp.volumeMounts }}
+            {{- $volumeMounts = concat $volumeMounts $comp.volumeMounts }}
+          {{- end }}
+          {{- if $root.Values.volumeMounts }}
+            {{- $volumeMounts = concat $volumeMounts $root.Values.volumeMounts }}
+          {{- end }}
+          {{- if $volumeMounts }}
+          volumeMounts:
+            {{- toYaml $volumeMounts | nindent 12 }}
+          {{- end }}
+          {{- end }}
+      {{- if eq $name "kong" }}
+      {{- if and $comp.configMap $comp.configMap.enabled }}
+      volumes:
+        - name: kong-config
+          configMap:
+            name: {{ include "inres.componentFullname" (dict "root" $root "name" $name) }}-config
+      {{- end }}
+      {{- else }}
+      {{- $volumes := list }}
+      {{- if $comp.volumes }}
+        {{- range $comp.volumes }}
+          {{- if and (eq .name "ai-workspaces") .persistentVolumeClaim }}
+            {{- $_ := set .persistentVolumeClaim "claimName" (printf "%s-workspaces" (include "inres.componentFullname" (dict "root" $root "name" $name))) }}
+          {{- else if and (eq .name "ai-claude") .persistentVolumeClaim }}
+            {{- $_ := set .persistentVolumeClaim "claimName" (printf "%s-claude" (include "inres.componentFullname" (dict "root" $root "name" $name))) }}
+          {{- else if and (eq .name "ai-data") .persistentVolumeClaim }}
+            {{- $_ := set .persistentVolumeClaim "claimName" (printf "%s-data" (include "inres.componentFullname" (dict "root" $root "name" $name))) }}
+          {{- else if and (eq .name "mcp-config") .configMap }}
+            {{- $_ := set .configMap "name" (printf "%s-mcp-config" (include "inres.componentFullname" (dict "root" $root "name" $name))) }}
+          {{- end }}
+          {{- $volumes = append $volumes . }}
+        {{- end }}
+      {{- end }}
+      {{- if $root.Values.volumes }}
+        {{- $volumes = concat $volumes $root.Values.volumes }}
+      {{- end }}
+      {{- if $volumes }}
+      volumes:
+        {{- toYaml $volumes | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+{{- end }}

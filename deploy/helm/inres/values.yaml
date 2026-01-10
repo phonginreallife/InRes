@@ -1,0 +1,352 @@
+# Default values for InRes Helm Chart
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Default replica count for components (can be overridden per component)
+replicaCount: 1
+
+# Default image settings
+image:
+  repository: ghcr.io/phonginreallife/
+  pullPolicy: IfPresent
+  tag: "latest"
+
+# Image pull secrets for private registries
+imagePullSecrets: []
+
+# Override chart name
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account configuration
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Pod annotations
+podAnnotations: {}
+
+# Pod labels
+podLabels: {}
+
+# Pod security context
+podSecurityContext: {}
+  # fsGroup: 2000
+
+# Container security context
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# Default service configuration
+service:
+  type: ClusterIP
+  port: 80
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+gloo:
+  enabled: false
+  serviceName: inres-kong
+  servicePort: 8000
+  useHttp2: false
+  gatewayLabels:
+    app.kubernetes.io/name: inres-kong
+    app.kubernetes.io/instance: inres-kong
+    app.kubernetes.io/component: kong
+  sslConfig:
+    secretName: inres-ssl-cert
+    namespace: inres
+  domains:
+    - inres.your-domain.com
+  routePrefix: "/webhook/*"
+
+# Default resource limits
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# Liveness and readiness probes
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes
+volumes: []
+
+# Additional volume mounts
+volumeMounts: []
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Migration job configuration
+migration:
+  enabled: false
+  image:
+    repository: migration:latest
+    name: inres-migration
+    tag: 1.0.1
+    pullPolicy: Always
+  backoffLimit: 3
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+
+# Components configuration with persistent storage
+components:
+  ai:
+    replicas: 1
+    image:
+      name: inres-ai
+    service:
+      enabled: true
+      type: ClusterIP
+      port: 8002
+    env:
+      # Required environment variables
+      - name: PORT
+        value: "8002"
+      - name: HOST
+        value: "0.0.0.0"
+      - name: USER_WORKSPACES_DIR
+        value: "/app/workspaces"
+      - name: INRES_CONFIG_PATH
+        value: "/app/config/config.yaml"
+    ingress:
+      enabled: false
+
+    # Resource limits
+    resources:
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+      requests:
+        cpu: "2"
+        memory: "2Gi"
+    # Persistent storage configuration for user workspaces
+    persistence:
+      enabled: true
+      storageClass: "" # Use default storage class, or specify like "gp2", "standard", etc.
+      accessMode: ReadWriteOnce
+      size: 10Gi # Adjust size based on your needs
+      mountPath: "/app/workspaces"
+
+    # Persistent storage configuration for Claude data
+    claudePersistence:
+      enabled: true
+      storageClass: "" # Use default storage class
+      accessMode: ReadWriteOnce
+      size: 5Gi # Adjust size based on your needs
+      mountPath: "/root/.claude"
+
+    # Volume mounts for the container
+    volumeMounts:
+      - name: ai-workspaces
+        mountPath: /app/workspaces
+      - name: ai-claude
+        mountPath: /root/.claude
+      - name: app-config
+        mountPath: /app/config
+        readOnly: true
+
+    # Volumes definition
+    volumes:
+      - name: ai-workspaces
+        persistentVolumeClaim:
+          claimName: '{{ include "inres.componentFullname" (dict "root" . "name" "ai") }}-workspaces'
+      - name: ai-claude
+        persistentVolumeClaim:
+          claimName: '{{ include "inres.componentFullname" (dict "root" . "name" "ai") }}-claude'
+      - name: app-config
+        secret:
+          secretName: inres-secrets
+          items:
+            - key: config.yaml
+              path: config.yaml
+
+    # RBAC configuration for AI pod
+    rbac:
+      # Enable RBAC for AI pod to access Kubernetes resources
+      enabled: true
+      # Additional custom resources to grant read access (optional)
+      # customResources:
+      #   - apiGroups: ["custom.io"]
+      #     resources: ["customresources"]
+
+  api:
+    image:
+      name: inres-api
+    service:
+      enabled: true
+      type: ClusterIP
+      port: 8080
+    env:
+      - name: PORT
+        value: "8080"
+      - name: INRES_ENV
+        value: "production"
+      - name: INRES_CONFIG_PATH
+        value: "/app/config/config.yaml"
+    
+    # Mount config file from secret
+    volumeMounts:
+      - name: app-config
+        mountPath: /app/config
+        readOnly: true
+      - name: api-data
+        mountPath: /app/data
+    volumes:
+      - name: app-config
+        secret:
+          secretName: inres-secrets
+          items:
+            - key: config.yaml
+              path: config.yaml
+      - name: api-data
+        emptyDir: {}
+    ingress:
+      enabled: false
+
+  slack-worker:
+    image:
+      name: inres-slack-worker
+    service:
+      enabled: false
+    env:
+      - name: INRES_CONFIG_PATH
+        value: "/app/config/config.yaml"
+      - name: POLL_INTERVAL
+        value: "1"
+      - name: BATCH_SIZE
+        value: "10"
+      - name: MAX_RETRIES
+        value: "3"
+      - name: LOG_LEVEL
+        value: "DEBUG"
+      - name: LOG_FILE
+        value: "/app/slack_worker.log"
+    
+    # Mount config file from secret
+    volumeMounts:
+      - name: app-config
+        mountPath: /app/config
+        readOnly: true
+    volumes:
+      - name: app-config
+        secret:
+          secretName: inres-secrets
+          items:
+            - key: config.yaml
+              path: config.yaml
+
+  web:
+    image:
+      name: inres-web
+    service:
+      enabled: true
+      type: ClusterIP
+      port: 3000
+
+  kong:
+    image:
+      repository: kong
+      tag: "2.8.1"
+      pullPolicy: IfNotPresent
+    service:
+      enabled: true
+      type: ClusterIP
+      port: 8000
+      ports:
+        - name: proxy
+          port: 8000
+          targetPort: 8000
+          protocol: TCP
+        - name: proxy-ssl
+          port: 8443
+          targetPort: 8443
+          protocol: TCP
+        - name: admin
+          port: 8001
+          targetPort: 8001
+          protocol: TCP
+    env:
+      - name: KONG_DATABASE
+        value: "off"
+      - name: KONG_DECLARATIVE_CONFIG
+        value: "/home/kong/kong.yml"
+      - name: KONG_DNS_ORDER
+        value: "LAST,A,CNAME"
+      - name: KONG_PLUGINS
+        value: "request-transformer,cors,key-auth,acl,basic-auth"
+      - name: KONG_NGINX_PROXY_PROXY_BUFFER_SIZE
+        value: "160k"
+      - name: KONG_NGINX_PROXY_PROXY_BUFFERS
+        value: "64 160k"
+      # Dashboard credentials - override these in your values file or use secrets
+      # Example with secretKeyRef:
+      # - name: DASHBOARD_USERNAME
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: kong-dashboard-credentials
+      #       key: username
+      # - name: DASHBOARD_PASSWORD
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: kong-dashboard-credentials
+      #       key: password
+      - name: DASHBOARD_USERNAME
+        value: "admin"  # CHANGE IN PRODUCTION - use secretKeyRef instead
+      - name: DASHBOARD_PASSWORD
+        value: ""  # MUST BE SET - use secretKeyRef in production
+    configMap:
+      enabled: true
+      name: kong-config
