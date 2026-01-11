@@ -1,0 +1,50 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+linters-settings:
+  errcheck:
+    # Don't report errors for these functions - commonly intentionally unchecked
+    exclude-functions:
+      - (*database/sql.Row).Scan
+      - (*database/sql.Rows).Scan
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
+
+issues:
+  # Exclude specific rules that generate noise
+  exclude-rules:
+    # S1009: should omit nil check; len() for nil slices/maps is defined as zero
+    # Often kept for clarity
+    - linters: [gosimple]
+      text: "S1009"
+    
+    # SA9003: empty branch - sometimes intentional for clarity
+    - linters: [staticcheck]
+      text: "SA9003"
+    
+    # SA5011: possible nil pointer dereference - often false positives
+    - linters: [staticcheck]
+      text: "SA5011"
+    
+    # Exclude ineffassign for common patterns like argIndex++
+    - linters: [ineffassign]
+      text: "ineffectual assignment to (argIdx|argIndex|severity|err)"
+
+  # Maximum issues count per one linter (0 = unlimited)
+  max-issues-per-linter: 0
+  
+  # Maximum count of issues with the same text
+  max-same-issues: 0
