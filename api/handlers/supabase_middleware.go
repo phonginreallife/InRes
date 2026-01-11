@@ -75,7 +75,7 @@ func (m *SupabaseAuthMiddleware) SupabaseAuthMiddleware() gin.HandlerFunc {
 				}
 				log.Printf("AUTH SUCCESS - API Key: %s (user: %s)", apiKey.Name, apiKey.UserID)
 				// Update last used timestamp (async, don't block request)
-				go m.APIKeyService.UpdateLastUsed(apiKey.ID)
+				go func() { _ = m.APIKeyService.UpdateLastUsed(apiKey.ID) }()
 				c.Next()
 				return
 			}

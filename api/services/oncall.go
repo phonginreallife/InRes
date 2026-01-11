@@ -517,7 +517,7 @@ func (s *OnCallService) executeScheduleSwap(schedule1, schedule2 db.Shift, messa
 	if err != nil {
 		return response, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Swap the user assignments
 	now := time.Now()

@@ -192,7 +192,7 @@ func (h *ConversationShareHandler) GetSharedConversation(c *gin.Context) {
 	}
 
 	// Update view count
-	h.PG.Exec(`
+	_, _ = h.PG.Exec(`
 		UPDATE conversation_shares
 		SET view_count = view_count + 1, last_viewed_at = NOW()
 		WHERE id = $1

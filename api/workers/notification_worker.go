@@ -127,42 +127,6 @@ func (w *NotificationWorker) getUserIDFromSlackID(slackUserID string) (string, e
 	return userID, nil
 }
 
-// logFailedNotification logs permanently failed notifications to database
-func (w *NotificationWorker) logFailedNotification(msg *NotificationMessage, err error) {
-	query := `
-		INSERT INTO notification_logs (user_id, incident_id, notification_type, channel, recipient, 
-		                              message, status, error_message, retry_count)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-
-	channels := ""
-	if len(msg.Channels) > 0 {
-		channelsJSON, _ := json.Marshal(msg.Channels)
-		channels = string(channelsJSON)
-	}
-
-	errorMsg := ""
-	if err != nil {
-		errorMsg = err.Error()
-	}
-
-	_, dbErr := w.PG.Exec(query,
-		msg.UserID,
-		msg.IncidentID,
-		msg.Type,
-		channels,
-		"", // recipient will be filled by individual channel handlers
-		"", // message content will be filled by individual channel handlers
-		"failed",
-		errorMsg,
-		msg.RetryCount,
-	)
-
-	if dbErr != nil {
-		log.Printf("❌ Failed to log failed notification: %v", dbErr)
-	}
-}
-
 // SendIncidentAssignedNotification is a helper to send incident assignment notifications
 func (w *NotificationWorker) SendIncidentAssignedNotification(userID, incidentID string) error {
 	message := &NotificationMessage{

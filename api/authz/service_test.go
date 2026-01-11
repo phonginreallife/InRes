@@ -707,7 +707,7 @@ func TestOrgService_RemoveOrgMember(t *testing.T) {
 			setup: func(a *MockAuthorizer, m *MockMembershipManager, r *MockOrgRepository) {
 				a.SetOrgRole("admin-1", "org-1", RoleAdmin)
 				a.SetOrgRole("user-2", "org-1", RoleMember)
-				m.AddMember(ctx, "user-2", ResourceOrg, "org-1", RoleMember)
+				_ = m.AddMember(ctx, "user-2", ResourceOrg, "org-1", RoleMember)
 			},
 			wantErr: false,
 		},
@@ -900,7 +900,7 @@ func TestProjectService_AddProjectMember(t *testing.T) {
 			setup: func(a *MockAuthorizer, m *MockMembershipManager, pr *MockProjectRepository, or *MockOrgRepository) {
 				a.SetProjectRole("admin-1", "proj-1", RoleAdmin)
 				pr.Projects["proj-1"] = &Project{ID: "proj-1", OrganizationID: "org-1"}
-				m.AddMember(ctx, "user-2", ResourceOrg, "org-1", RoleMember)
+				_ = m.AddMember(ctx, "user-2", ResourceOrg, "org-1", RoleMember)
 			},
 			wantErr: false,
 		},
@@ -923,7 +923,7 @@ func TestProjectService_AddProjectMember(t *testing.T) {
 			setup: func(a *MockAuthorizer, m *MockMembershipManager, pr *MockProjectRepository, or *MockOrgRepository) {
 				a.SetProjectRole("admin-1", "proj-1", RoleAdmin)
 				pr.Projects["proj-1"] = &Project{ID: "proj-1", OrganizationID: "org-1"}
-				m.AddMember(ctx, "user-2", ResourceOrg, "org-1", RoleMember)
+				_ = m.AddMember(ctx, "user-2", ResourceOrg, "org-1", RoleMember)
 			},
 			wantErr: true,
 		},

@@ -486,10 +486,10 @@ func (s *IncidentService) ListIncidents(filters map[string]interface{}) ([]db.In
 
 		// Parse JSON fields
 		if labels.Valid && labels.String != "" {
-			json.Unmarshal([]byte(labels.String), &incident.Labels)
+			_ = json.Unmarshal([]byte(labels.String), &incident.Labels)
 		}
 		if customFields.Valid && customFields.String != "" {
-			json.Unmarshal([]byte(customFields.String), &incident.CustomFields)
+			_ = json.Unmarshal([]byte(customFields.String), &incident.CustomFields)
 		}
 
 		incidents = append(incidents, incident)
@@ -644,10 +644,10 @@ func (s *IncidentService) GetIncident(id string) (*db.IncidentResponse, error) {
 
 	// Parse JSON fields
 	if labels.Valid && labels.String != "" {
-		json.Unmarshal([]byte(labels.String), &incident.Labels)
+		_ = json.Unmarshal([]byte(labels.String), &incident.Labels)
 	}
 	if customFields.Valid && customFields.String != "" {
-		json.Unmarshal([]byte(customFields.String), &incident.CustomFields)
+		_ = json.Unmarshal([]byte(customFields.String), &incident.CustomFields)
 	}
 
 	// Get recent events
@@ -830,7 +830,7 @@ func (s *IncidentService) CreateIncident(incident *db.Incident) (*db.Incident, e
 	}
 
 	// Create triggered event
-	s.createIncidentEvent(incident.ID, db.IncidentEventTriggered, map[string]interface{}{
+	_ = s.createIncidentEvent(incident.ID, db.IncidentEventTriggered, map[string]interface{}{
 		"source":   incident.Source,
 		"severity": incident.Severity,
 	}, "")
@@ -852,7 +852,7 @@ func (s *IncidentService) CreateIncident(incident *db.Incident) (*db.Incident, e
 			eventData["assigned_to"] = incident.AssignedTo // Fallback to ID if name lookup fails
 		}
 
-		s.createIncidentEvent(incident.ID, db.IncidentEventAssigned, eventData, "")
+		_ = s.createIncidentEvent(incident.ID, db.IncidentEventAssigned, eventData, "")
 	}
 
 	// Add to Redis queue for processing
@@ -966,14 +966,14 @@ func (s *IncidentService) UpdateIncident(id string, req db.UpdateIncidentRequest
 	}
 
 	if labels.Valid && labels.String != "" {
-		json.Unmarshal([]byte(labels.String), &incident.Labels)
+		_ = json.Unmarshal([]byte(labels.String), &incident.Labels)
 	}
 	if customFields.Valid && customFields.String != "" {
-		json.Unmarshal([]byte(customFields.String), &incident.CustomFields)
+		_ = json.Unmarshal([]byte(customFields.String), &incident.CustomFields)
 	}
 
 	// Create update event
-	s.createIncidentEvent(id, db.IncidentEventUpdated, map[string]interface{}{
+	_ = s.createIncidentEvent(id, db.IncidentEventUpdated, map[string]interface{}{
 		"updated_fields": req,
 	}, "")
 
@@ -998,7 +998,7 @@ func (s *IncidentService) AcknowledgeIncident(id, userID, note string) error {
 	if note != "" {
 		eventData["note"] = note
 	}
-	s.createIncidentEvent(id, db.IncidentEventAcknowledged, eventData, userID)
+	_ = s.createIncidentEvent(id, db.IncidentEventAcknowledged, eventData, userID)
 
 	// Send notification about web acknowledgment to update Slack
 	if s.NotificationWorker != nil {
@@ -1035,7 +1035,7 @@ func (s *IncidentService) ResolveIncident(id, userID, note, resolution string) e
 	if resolution != "" {
 		eventData["resolution"] = resolution
 	}
-	s.createIncidentEvent(id, db.IncidentEventResolved, eventData, userID)
+	_ = s.createIncidentEvent(id, db.IncidentEventResolved, eventData, userID)
 
 	// Send notification about resolution to update Slack
 	if s.NotificationWorker != nil {
@@ -1140,7 +1140,7 @@ func (s *IncidentService) GetIncidentEvents(incidentID string, limit int) ([]db.
 			event.CreatedByName = createdByName.String
 		}
 		if eventDataJSON.Valid && eventDataJSON.String != "" {
-			json.Unmarshal([]byte(eventDataJSON.String), &event.EventData)
+			_ = json.Unmarshal([]byte(eventDataJSON.String), &event.EventData)
 		}
 
 		events = append(events, event)
@@ -1348,7 +1348,7 @@ func (s *IncidentService) GetIncidentTrends(orgID, projectID, timeRange string) 
 
 	// 4. Get top services by incident count
 	// Build WHERE clause with table alias 'i' for the services join query
-	serviceWhereClause := fmt.Sprintf("WHERE i.created_at >= NOW() - $1::interval")
+	serviceWhereClause := "WHERE i.created_at >= NOW() - $1::interval"
 	serviceArgIndex := 2
 	if orgID != "" {
 		serviceWhereClause += fmt.Sprintf(" AND i.organization_id = $%d", serviceArgIndex)
@@ -1707,7 +1707,7 @@ func (s *IncidentService) ManualEscalateIncident(incidentID, userID string) (*db
 		eventData["assigned_to"] = assignedToName
 	}
 
-	s.createIncidentEvent(incidentID, db.IncidentEventEscalated, eventData, userID)
+	_ = s.createIncidentEvent(incidentID, db.IncidentEventEscalated, eventData, userID)
 
 	// Create escalation completion event if this was the last level
 	if !hasMoreLevels {
@@ -1720,7 +1720,7 @@ func (s *IncidentService) ManualEscalateIncident(incidentID, userID string) (*db
 			completionEventData["final_assignee"] = assignedToName
 			completionEventData["final_assignee_id"] = assignedUserID
 		}
-		s.createIncidentEvent(incidentID, "escalation_completed", completionEventData, userID)
+		_ = s.createIncidentEvent(incidentID, "escalation_completed", completionEventData, userID)
 	}
 
 	// Send notification to assigned user

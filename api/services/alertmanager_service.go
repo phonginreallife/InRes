@@ -144,9 +144,9 @@ func (s *AlertManagerService) handleFiringAlert(alert *db.Alert, _ *models.Alert
 					}
 
 					if alertForFCM.AssignedTo != "" {
-						s.AlertService.FCMService.SendAlertNotification(alertForFCM)
+						_ = s.AlertService.FCMService.SendAlertNotification(alertForFCM)
 					} else {
-						s.AlertService.FCMService.SendNotificationToOnCallUsers(alertForFCM)
+						_ = s.AlertService.FCMService.SendNotificationToOnCallUsers(alertForFCM)
 					}
 				}()
 			}

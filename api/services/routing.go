@@ -249,10 +249,10 @@ func (s *RoutingService) ListRoutingRules(tableID string, activeOnly bool) ([]db
 
 		// Parse JSON fields
 		if len(matchConditionsJSON) > 0 {
-			json.Unmarshal(matchConditionsJSON, &rule.MatchConditions)
+			_ = json.Unmarshal(matchConditionsJSON, &rule.MatchConditions)
 		}
 		if len(timeConditionsJSON) > 0 {
-			json.Unmarshal(timeConditionsJSON, &rule.TimeConditions)
+			_ = json.Unmarshal(timeConditionsJSON, &rule.TimeConditions)
 		}
 
 		if escalationRuleID.Valid {
@@ -358,10 +358,10 @@ func (s *RoutingService) GetRoutingRule(id string) (*db.AlertRoutingRule, error)
 
 	// Parse JSON fields
 	if len(matchConditionsJSON) > 0 {
-		json.Unmarshal(matchConditionsJSON, &rule.MatchConditions)
+		_ = json.Unmarshal(matchConditionsJSON, &rule.MatchConditions)
 	}
 	if len(timeConditionsJSON) > 0 {
-		json.Unmarshal(timeConditionsJSON, &rule.TimeConditions)
+		_ = json.Unmarshal(timeConditionsJSON, &rule.TimeConditions)
 	}
 
 	if escalationRuleID.Valid {
@@ -830,10 +830,10 @@ func (s *RoutingService) GetRoutingHistory(alertID string) ([]db.AlertRouteLog, 
 
 		// Parse JSON fields
 		if len(matchConditionsJSON) > 0 {
-			json.Unmarshal(matchConditionsJSON, &log.MatchConditions)
+			_ = json.Unmarshal(matchConditionsJSON, &log.MatchConditions)
 		}
 		if len(alertAttributesJSON) > 0 {
-			json.Unmarshal(alertAttributesJSON, &log.AlertAttributes)
+			_ = json.Unmarshal(alertAttributesJSON, &log.AlertAttributes)
 		}
 
 		logs = append(logs, log)

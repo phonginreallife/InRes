@@ -277,7 +277,7 @@ func (c *CloudflareClient) UploadWorker(accountID, workerName, scriptContent str
 		"Content-Disposition": []string{`form-data; name="metadata"`},
 		"Content-Type":        []string{"application/json"},
 	})
-	part.Write(metadataBytes)
+	_, _ = part.Write(metadataBytes)
 
 	// Script
 	// Note: Cloudflare API expects the script file to be named matching main_module if using modules
@@ -285,7 +285,7 @@ func (c *CloudflareClient) UploadWorker(accountID, workerName, scriptContent str
 		"Content-Disposition": []string{`form-data; name="index.js"; filename="index.js"`},
 		"Content-Type":        []string{"application/javascript+module"},
 	})
-	part.Write([]byte(scriptContent))
+	_, _ = part.Write([]byte(scriptContent))
 
 	writer.Close()
 

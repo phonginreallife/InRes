@@ -362,7 +362,7 @@ func (s *SchedulerService) CreateSchedulerWithShifts(groupID string, schedulerRe
 	if err != nil {
 		return db.Scheduler{}, nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback() // Will be ignored if tx.Commit() succeeds
+	defer func() { _ = tx.Rollback() }() // Will be ignored if tx.Commit() succeeds
 
 	// Generate unique name if needed
 	uniqueName, err := s.generateUniqueName(groupID, schedulerReq.Name)
@@ -668,7 +668,7 @@ func (s *SchedulerService) DeleteScheduler(schedulerID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// First, soft delete all shifts associated with this scheduler
 	_, err = tx.Exec(`
@@ -955,7 +955,7 @@ func (s *SchedulerService) UpdateSchedulerWithShifts(schedulerID string, schedul
 	if err != nil {
 		return db.Scheduler{}, nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback() // Will be ignored if tx.Commit() succeeds
+	defer func() { _ = tx.Rollback() }() // Will be ignored if tx.Commit() succeeds
 
 	// Get existing scheduler
 	var scheduler db.Scheduler

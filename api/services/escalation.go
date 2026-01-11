@@ -86,7 +86,7 @@ func (s *EscalationService) CreateEscalationPolicy(groupID string, req db.Escala
 	if err != nil {
 		return policy, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Insert escalation policy
 	query := `
@@ -200,7 +200,7 @@ func (s *EscalationService) UpdateEscalationPolicy(policyID string, req db.Escal
 	if err != nil {
 		return policy, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Update escalation policy
 	updateQuery := `
@@ -302,7 +302,7 @@ func (s *EscalationService) DeleteEscalationPolicy(policyID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Delete escalation levels first (due to foreign key constraint)
 	deleteLevelsQuery := `DELETE FROM escalation_levels WHERE policy_id = $1`
@@ -1200,12 +1200,6 @@ func (s *EscalationService) notifyExternal(alert *db.Alert, target string, metho
 func (s *EscalationService) scheduleNextEscalationStep(alert *db.Alert, policy *db.EscalationPolicyWithLevels, stepNumber int, delay time.Duration) {
 	// TODO: Implement escalation scheduling using Redis or background jobs
 	log.Printf("Scheduling next escalation step %d in %v for alert %s", stepNumber, delay, alert.Title)
-}
-
-// scheduleNextEscalation schedules the next escalation level (legacy - for backward compatibility)
-func (s *EscalationService) scheduleNextEscalation(alert *db.Alert, policy *db.EscalationPolicyWithLevels, nextLevel *db.EscalationLevel, delay time.Duration) {
-	// TODO: Implement escalation scheduling using Redis or background jobs
-	log.Printf("Scheduling next escalation level %d in %v for alert %s", nextLevel.LevelNumber, delay, alert.Title)
 }
 
 // saveEscalation saves an escalation record to the database

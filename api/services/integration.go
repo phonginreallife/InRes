@@ -675,7 +675,7 @@ func (s *IntegrationService) UpdateServiceIntegration(serviceIntegrationID strin
 
 	// Parse current routing conditions
 	if len(conditionsJSON) > 0 {
-		json.Unmarshal(conditionsJSON, &si.RoutingConditions)
+		_ = json.Unmarshal(conditionsJSON, &si.RoutingConditions)
 	} else {
 		si.RoutingConditions = make(map[string]interface{})
 	}

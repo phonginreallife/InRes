@@ -55,7 +55,7 @@ func (s *UptimeService) ListServices() ([]db.UptimeService, error) {
 
 		// Parse headers JSON
 		if headersJSON != "" && headersJSON != "{}" {
-			json.Unmarshal([]byte(headersJSON), &service.Headers)
+			_ = json.Unmarshal([]byte(headersJSON), &service.Headers)
 		}
 
 		services = append(services, service)
@@ -85,7 +85,7 @@ func (s *UptimeService) GetService(id string) (db.UptimeService, error) {
 
 	// Parse headers JSON
 	if headersJSON != "" && headersJSON != "{}" {
-		json.Unmarshal([]byte(headersJSON), &service.Headers)
+		_ = json.Unmarshal([]byte(headersJSON), &service.Headers)
 	}
 
 	return service, nil
@@ -501,7 +501,7 @@ func (s *UptimeService) createDowntimeAlert(serviceID, incidentID, description s
 		s.Redis.RPush(context.Background(), "alerts:queue", b)
 
 		// Update incident with alert ID
-		s.PG.Exec(`UPDATE service_incidents SET alert_id = $1 WHERE id = $2`, alert.ID, incidentID)
+		_, _ = s.PG.Exec(`UPDATE service_incidents SET alert_id = $1 WHERE id = $2`, alert.ID, incidentID)
 	}
 }
 

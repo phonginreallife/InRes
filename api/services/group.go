@@ -419,7 +419,7 @@ func (s *GroupService) CreateGroup(req db.CreateGroupRequest, createdBy string) 
 	if err != nil {
 		return group, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Create the group with organization_id and project_id
 	_, err = tx.Exec(`

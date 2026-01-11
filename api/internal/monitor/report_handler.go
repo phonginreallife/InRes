@@ -153,6 +153,6 @@ func (h *ReportHandler) resolveIncident(monitorID uuid.UUID) {
 		// I'll use the nil UUID for now: "00000000-0000-0000-0000-000000000000"
 		systemUserID := "00000000-0000-0000-0000-000000000000"
 
-		h.incidentService.ResolveIncident(incidentID, systemUserID, "Monitor recovered", "Auto-resolved by uptime monitor")
+		_ = h.incidentService.ResolveIncident(incidentID, systemUserID, "Monitor recovered", "Auto-resolved by uptime monitor")
 	}
 }

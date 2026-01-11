@@ -83,7 +83,7 @@ func (s *RotationService) CreateRotationCycle(groupID string, req db.CreateRotat
 	if err != nil {
 		return response, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Insert rotation cycle
 	_, err = tx.Exec(`
@@ -365,7 +365,7 @@ func (s *RotationService) DeactivateRotationCycle(rotationCycleID string) error 
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Deactivate rotation cycle
 	_, err = tx.Exec("UPDATE rotation_cycles SET is_active = false, updated_at = NOW() WHERE id = $1", rotationCycleID)

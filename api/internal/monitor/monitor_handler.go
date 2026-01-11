@@ -332,7 +332,7 @@ func (h *MonitorHandler) syncMonitorToD1(deploymentID uuid.UUID, m Monitor) {
 		isActive,
 	}
 
-	cf.ExecuteD1SQL(accountID, dbID, sql, params)
+	_ = cf.ExecuteD1SQL(accountID, dbID, sql, params)
 }
 
 func (h *MonitorHandler) deleteMonitorFromD1(deploymentID uuid.UUID, monitorID uuid.UUID) {
@@ -347,7 +347,7 @@ func (h *MonitorHandler) deleteMonitorFromD1(deploymentID uuid.UUID, monitorID u
 	}
 
 	cf := NewCloudflareClient(apiToken)
-	cf.ExecuteD1SQL(accountID, dbID, "DELETE FROM monitors WHERE id = ?", []interface{}{monitorID.String()})
+	_ = cf.ExecuteD1SQL(accountID, dbID, "DELETE FROM monitors WHERE id = ?", []interface{}{monitorID.String()})
 }
 
 // GetMonitorStats returns overall statistics for a monitor from D1

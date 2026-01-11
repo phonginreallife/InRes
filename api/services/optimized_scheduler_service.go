@@ -27,7 +27,7 @@ func (s *OptimizedSchedulerService) CreateSchedulerWithShiftsOptimized(groupID s
 	if err != nil {
 		return db.Scheduler{}, nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback() // Will be ignored if tx.Commit() succeeds
+	defer func() { _ = tx.Rollback() }() // Will be ignored if tx.Commit() succeeds
 
 	// OPTIMIZATION 1: Generate unique name with single query
 	uniqueName, err := s.generateUniqueNameOptimized(tx, groupID, schedulerReq.Name)
@@ -301,7 +301,7 @@ func (s *OptimizedSchedulerService) UpdateSchedulerWithShiftsOptimized(scheduler
 	if err != nil {
 		return db.Scheduler{}, nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback() // Will be ignored if tx.Commit() succeeds
+	defer func() { _ = tx.Rollback() }() // Will be ignored if tx.Commit() succeeds
 
 	// Get existing scheduler
 	var scheduler db.Scheduler
@@ -451,7 +451,7 @@ func (s *OptimizedSchedulerService) UpdateSchedulerWithShiftsOptimized(scheduler
 				}
 
 				// Deactivate the old override to avoid confusion (though it points to an inactive shift anyway)
-				tx.Exec(`UPDATE schedule_overrides SET is_active = false WHERE id = $1`, po.ID)
+				_, _ = tx.Exec(`UPDATE schedule_overrides SET is_active = false WHERE id = $1`, po.ID)
 			} else {
 				log.Printf("Warning: Could not find matching shift for override %s (Time: %s - %s)",
 					po.ID, po.OverrideStartTime.Format(time.RFC3339), po.OverrideEndTime.Format(time.RFC3339))

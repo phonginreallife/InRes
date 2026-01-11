@@ -517,7 +517,7 @@ func (h *MobileHandler) RegisterDeviceForPush(c *gin.Context) {
 	}
 
 	var result map[string]interface{}
-	json.Unmarshal(body, &result)
+	_ = json.Unmarshal(body, &result)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,

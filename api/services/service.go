@@ -121,10 +121,10 @@ func (s *ServiceService) GetService(serviceID string) (db.Service, error) {
 
 	// Parse JSON fields
 	if len(integrationsJSON) > 0 {
-		json.Unmarshal(integrationsJSON, &service.Integrations)
+		_ = json.Unmarshal(integrationsJSON, &service.Integrations)
 	}
 	if len(notificationJSON) > 0 {
-		json.Unmarshal(notificationJSON, &service.NotificationSettings)
+		_ = json.Unmarshal(notificationJSON, &service.NotificationSettings)
 	}
 
 	// Handle nullable escalation rule ID
@@ -174,10 +174,10 @@ func (s *ServiceService) GetGroupServices(groupID string) ([]db.Service, error) 
 
 		// Parse JSON fields
 		if len(integrationsJSON) > 0 {
-			json.Unmarshal(integrationsJSON, &service.Integrations)
+			_ = json.Unmarshal(integrationsJSON, &service.Integrations)
 		}
 		if len(notificationJSON) > 0 {
-			json.Unmarshal(notificationJSON, &service.NotificationSettings)
+			_ = json.Unmarshal(notificationJSON, &service.NotificationSettings)
 		}
 
 		// Handle nullable escalation rule ID
@@ -309,10 +309,10 @@ func (s *ServiceService) GetServiceByRoutingKey(routingKey string) (db.Service, 
 
 	// Parse JSON fields
 	if len(integrationsJSON) > 0 {
-		json.Unmarshal(integrationsJSON, &service.Integrations)
+		_ = json.Unmarshal(integrationsJSON, &service.Integrations)
 	}
 	if len(notificationJSON) > 0 {
-		json.Unmarshal(notificationJSON, &service.NotificationSettings)
+		_ = json.Unmarshal(notificationJSON, &service.NotificationSettings)
 	}
 
 	// Handle nullable escalation rule ID
@@ -463,10 +463,10 @@ func (s *ServiceService) ListServices(filters map[string]interface{}) ([]db.Serv
 
 		// Parse JSON fields
 		if len(integrationsJSON) > 0 {
-			json.Unmarshal(integrationsJSON, &service.Integrations)
+			_ = json.Unmarshal(integrationsJSON, &service.Integrations)
 		}
 		if len(notificationJSON) > 0 {
-			json.Unmarshal(notificationJSON, &service.NotificationSettings)
+			_ = json.Unmarshal(notificationJSON, &service.NotificationSettings)
 		}
 
 		// Handle nullable escalation rule ID
@@ -530,10 +530,10 @@ func (s *ServiceService) ListAllServices(isActive *bool) ([]db.Service, error) {
 
 		// Parse JSON fields
 		if len(integrationsJSON) > 0 {
-			json.Unmarshal(integrationsJSON, &service.Integrations)
+			_ = json.Unmarshal(integrationsJSON, &service.Integrations)
 		}
 		if len(notificationJSON) > 0 {
-			json.Unmarshal(notificationJSON, &service.NotificationSettings)
+			_ = json.Unmarshal(notificationJSON, &service.NotificationSettings)
 		}
 
 		// Handle nullable escalation rule ID

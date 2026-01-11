@@ -579,10 +579,9 @@ func (h *WebhookHandler) processCoralogixWebhookLegacy(payload map[string]interf
 		severity = "critical"
 	case "error":
 		severity = "high"
-	case "warning":
-		severity = "warning"
 	case "info":
 		severity = "info"
+	// default keeps severity = "warning"
 	}
 
 	alert := ProcessedAlert{

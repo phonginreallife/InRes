@@ -83,7 +83,7 @@ func (h *IdentityHandler) ConnectRelay(c *gin.Context) {
 
 	// 4. Success
 	var result map[string]interface{}
-	json.NewDecoder(resp.Body).Decode(&result)
+	_ = json.NewDecoder(resp.Body).Decode(&result)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":        "Successfully connected to Relay",
