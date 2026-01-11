@@ -39,6 +39,10 @@ issues:
     - linters: [staticcheck]
       text: "SA5011"
     
+    # SA4006: value of err is never used - sometimes intentional
+    - linters: [staticcheck]
+      text: "SA4006"
+    
     # Exclude ineffassign for common patterns like argIndex++
     - linters: [ineffassign]
       text: "ineffectual assignment to (argIdx|argIndex|severity|err)"
