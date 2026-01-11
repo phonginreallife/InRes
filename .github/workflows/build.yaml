@@ -6,7 +6,6 @@ on:
     paths:
       - 'api/**'
       - 'frontend/**'
-      - 'worker/**'
     tags:
       - 'v*'
   pull_request:
@@ -14,7 +13,6 @@ on:
     paths:
       - 'api/**'
       - 'frontend/**'
-      - 'worker/**'
   workflow_dispatch:
 
 permissions:
@@ -95,14 +93,11 @@ jobs:
             context: api/ai
             dockerfile: api/ai/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-ai
-          - name: worker
-            context: worker
-            dockerfile: worker/Dockerfile
-            image: ghcr.io/${{ github.repository_owner }}/inres-worker
           - name: frontend
             context: frontend/inres
             dockerfile: frontend/inres/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-frontend
+          # Note: worker/ is a Cloudflare Worker, deployed via wrangler, not Docker
 
     steps:
       - uses: actions/checkout@v4
