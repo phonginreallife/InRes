@@ -313,6 +313,7 @@ func (s *IncidentService) ListIncidents(filters map[string]interface{}) ([]db.In
 		args = append(args, projectID)
 		argIndex++
 	}
+	_ = argIndex // silence ineffassign - last filter condition
 
 	// Time range filter
 	if timeRange, ok := filters["time_range"].(string); ok && timeRange != "" && timeRange != "all" {
@@ -1262,6 +1263,7 @@ func (s *IncidentService) GetIncidentTrends(orgID, projectID, timeRange string) 
 		args = append(args, projectID)
 		argIndex++
 	}
+	_ = argIndex // silence ineffassign
 
 	// 1. Get daily counts
 	dailyQuery := fmt.Sprintf(`

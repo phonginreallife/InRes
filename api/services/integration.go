@@ -191,6 +191,7 @@ func (s *IntegrationService) GetIntegrations(integType string, activeOnly bool) 
 		args = append(args, true)
 		argIndex++
 	}
+	_ = argIndex // silence ineffassign
 
 	query += " ORDER BY i.created_at DESC"
 
@@ -316,6 +317,7 @@ func (s *IntegrationService) GetIntegrationsWithFilters(filters map[string]inter
 		args = append(args, true)
 		argIndex++
 	}
+	_ = argIndex // silence ineffassign
 
 	query += " ORDER BY i.created_at DESC"
 

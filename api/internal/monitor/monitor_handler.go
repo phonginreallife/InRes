@@ -72,6 +72,7 @@ func (h *MonitorHandler) GetMonitors(c *gin.Context) {
 		args = append(args, deploymentID)
 		argIdx++
 	}
+	_ = argIdx // silence ineffassign
 
 	query := `
 		SELECT id, deployment_id, name, description, method, url, target, headers, body, timeout, expect_status, follow_redirect, response_keyword, response_forbidden_keyword, tooltip, status_page_link, interval_seconds, is_active, last_check_at, last_status, last_latency, last_error, is_up, created_at, updated_at

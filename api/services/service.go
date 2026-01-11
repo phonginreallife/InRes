@@ -436,6 +436,7 @@ func (s *ServiceService) ListServices(filters map[string]interface{}) ([]db.Serv
 		args = append(args, currentUserID)
 		argIndex++
 	}
+	_ = argIndex // silence ineffassign
 
 	query += " ORDER BY g.name, s.name"
 

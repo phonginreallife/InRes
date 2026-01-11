@@ -198,6 +198,7 @@ func (s *GroupService) ListGroups(filters map[string]interface{}) ([]db.Group, e
 		args = append(args, currentUserID)
 		argIndex++
 	}
+	_ = argIndex // silence ineffassign
 
 	query += " ORDER BY g.created_at DESC"
 

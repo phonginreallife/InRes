@@ -827,6 +827,7 @@ func (s *EscalationService) GetGroupEscalationPoliciesWithFilters(filters map[st
 		args = append(args, true)
 		argIndex++
 	}
+	_ = argIndex // silence ineffassign
 
 	query += " ORDER BY ep.created_at DESC"
 
