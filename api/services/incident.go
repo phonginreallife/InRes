@@ -1691,7 +1691,7 @@ func (s *IncidentService) ManualEscalateIncident(incidentID, userID string) (*db
 	// Get assignee name for event
 	var assignedToName string
 	if assignedUserID != "" {
-		s.PG.QueryRow(`SELECT COALESCE(name, email, 'Unknown') FROM users WHERE id = $1`, assignedUserID).Scan(&assignedToName)
+		_ = s.PG.QueryRow(`SELECT COALESCE(name, email, 'Unknown') FROM users WHERE id = $1`, assignedUserID).Scan(&assignedToName)
 	}
 
 	// Create escalation event
