@@ -89,10 +89,10 @@ jobs:
             context: .
             dockerfile: api/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-api
-          - name: ai
+          - name: agent
             context: api/ai
             dockerfile: api/ai/Dockerfile
-            image: ghcr.io/${{ github.repository_owner }}/inres-ai
+            image: ghcr.io/${{ github.repository_owner }}/inres-agent
           - name: frontend
             context: frontend/inres
             dockerfile: frontend/inres/Dockerfile

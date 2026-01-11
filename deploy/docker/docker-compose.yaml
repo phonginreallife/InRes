@@ -1,10 +1,10 @@
 # version: "3.9"
 
 services:
-  ai:
-    container_name: inres-ai
+  agent:
+    container_name: inres-agent
     platform: linux/amd64
-    image: ghcr.io/phonginreallife/inres-ai:latest
+    image: ghcr.io/phonginreallife/inres-agent:latest
     expose:
       - "8002"
     ports:
