@@ -12,6 +12,7 @@ import CreateIncidentModal from '../../components/incidents/CreateIncidentModal'
 import { apiClient } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrg } from '../../contexts/OrgContext';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 // Default stats structure (empty/zero values)
 const DEFAULT_STATS = {
@@ -29,6 +30,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Auto-refresh when realtime incident notifications arrive
+  useRealtimeRefresh({
+    onIncident: (notification) => {
+      console.log('[Dashboard] Realtime incident notification, refreshing...', notification.title);
+      setRefreshKey(prev => prev + 1);
+    },
+    debounceMs: 500, // Debounce rapid updates
+  });
 
   // Fetch incident stats from API
   const fetchStats = useCallback(async () => {

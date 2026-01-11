@@ -11,6 +11,7 @@ import IncidentFilters from '../../components/incidents/IncidentFilters';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrg } from '../../contexts/OrgContext';
 import { apiClient } from '../../lib/api';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeRefresh';
 
 const INITIAL_FILTERS = {
   search: '',
@@ -45,6 +46,15 @@ export default function IncidentsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
+
+  // Auto-refresh when realtime incident notifications arrive
+  useRealtimeRefresh({
+    onIncident: (notification) => {
+      console.log('[IncidentsPage] Realtime incident notification, refreshing...', notification.title);
+      setRefreshTrigger(prev => prev + 1);
+    },
+    debounceMs: 500,
+  });
 
   // Modal state from URL
   const modalIncidentId = searchParams.get('modal');

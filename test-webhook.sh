@@ -1,36 +1,39 @@
 #!/bin/bash
-API_URL="http://localhost:8080"
-INTEGRATION_ID="${1:-your-integration-id}"
+# Test PagerDuty webhook - sends a TRIGGERED event to create a new incident
+# Usage: ./test-webhook.sh [integration_id]
 
-echo "🚀 Sending test PagerDuty webhook..."
-curl -s -X POST "http://localhost:8080/webhook/pagerduty/7bba276b-1932-4ee5-ad22-6a7b9902dcd3" \
+INTEGRATION_ID="${1:-d907ccc4-a415-4f9b-ba94-881e3f760901}"
+# Use SERVER_URL env var or default to localhost
+API_URL="${SERVER_URL:-http://localhost:8080}"
+
+echo "🚀 Sending test PagerDuty webhook (TRIGGERED event)..."
+curl -s -X POST "${API_URL}/webhook/pagerduty/${INTEGRATION_ID}" \
   -H "Content-Type: application/json" \
   -d '{
     "event": {
-      "id": "evt-appsec-002",
-      "event_type": "incident.resolved",
-      "occurred_at": "2026-01-09T14:40:00Z",
+      "id": "evt-test-'$(date +%s)'",
+      "event_type": "incident.triggered",
+      "occurred_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
       "agent": {
-        "id": "PUSER002",
+        "id": "PUSER001",
         "type": "user_reference",
-        "name": "Security Team Lead",
-        "email": "lead@appsec.io"
+        "name": "Test User",
+        "email": "test@example.com"
       },
       "data": {
-        "id": "PINC-APPSEC-001",
+        "id": "PINC-TEST-'$(date +%s)'",
         "type": "incident",
-        "html_url": "https://appsec.pagerduty.com/incidents/PINC-APPSEC-001",
-        "number": 42,
-        "status": "resolved",
-        "incident_key": "mdaas/security-alert",
-        "created_at": "2026-01-09T14:35:00Z",
-        "title": "🔒 MDaaS Security Alert - Suspicious Activity Detected",
+        "html_url": "https://example.pagerduty.com/incidents/PINC-TEST",
+        "number": 99,
+        "status": "triggered",
+        "incident_key": "test/alert-'$(date +%s)'",
+        "created_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+        "title": "🔥 Test Alert - High CPU Usage Detected",
         "urgency": "high",
         "service": {
-          "id": "PSVC-MDAAS",
-          "name": "MDaaS Production"
-        },
-        "resolve_reason": "Confirmed false positive - IP belongs to authorized penetration testing team"
+          "id": "PSVC-TEST",
+          "name": "Test Service"
+        }
       }
     }
   }' 
