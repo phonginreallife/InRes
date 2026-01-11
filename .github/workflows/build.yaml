@@ -97,6 +97,10 @@ jobs:
             context: frontend/inres
             dockerfile: frontend/inres/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-frontend
+          - name: slack-worker
+            context: api/workers
+            dockerfile: api/workers/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/inres-slack-worker
           # Note: worker/ is a Cloudflare Worker, deployed via wrangler, not Docker
 
     steps:
