@@ -96,4 +96,4 @@ COMMENT ON TABLE uptime_providers IS 'External uptime monitoring providers (Upti
 COMMENT ON TABLE external_monitors IS 'Monitors imported from external providers';
 COMMENT ON TABLE uptime_history IS 'Daily uptime history for all monitors (internal and external)';
 COMMENT ON COLUMN uptime_providers.provider_type IS 'Provider type: uptimerobot, checkly, pingdom, betterstack, webhook';
-COMMENT ON COLUMN external_monitors.monitor_source IS 'Source: internal (Cloudflare Worker) or external (imported)';
+COMMENT ON COLUMN uptime_history.monitor_source IS 'Source: internal (Cloudflare Worker) or external (imported)';
