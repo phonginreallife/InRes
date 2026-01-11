@@ -28,7 +28,11 @@ data_dir: "./data"
 # =============================================================================
 # SUPABASE & AUTH
 # =============================================================================
-supabase_url: "https://<project>.supabase.co"
+# Internal URL for API→Supabase communication (Docker container name)
+supabase_url: "http://supabase_kong_supabase:8000"
+
+# Public URL for frontend/browser (your server's public IP or domain)
+public_supabase_url: "http://your-server-ip:54321"
 
 # Public key for frontend Supabase client (required)
 supabase_anon_key: "sb_publishable_..."

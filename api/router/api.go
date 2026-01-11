@@ -134,7 +134,11 @@ func NewGinRouter(pg *sql.DB, redis *redis.Client) *gin.Engine {
 		c.Header("x-inres-env", env)
 
 		// Get Supabase config to send to frontend
-		supabaseURL := config.App.SupabaseURL
+		// Use PublicSupabaseURL for browser access, fallback to SupabaseURL
+		supabaseURL := config.App.PublicSupabaseURL
+		if supabaseURL == "" {
+			supabaseURL = config.App.SupabaseURL
+		}
 		supabaseAnonKey := config.App.SupabaseAnonKey
 
 		c.JSON(200, gin.H{

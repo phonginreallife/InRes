@@ -22,7 +22,8 @@ type Config struct {
 	DataDir string `mapstructure:"data_dir"`
 
 	// Supabase
-	SupabaseURL            string `mapstructure:"supabase_url"`
+	SupabaseURL            string `mapstructure:"supabase_url"`        // Internal URL for API→Supabase communication
+	PublicSupabaseURL      string `mapstructure:"public_supabase_url"` // Public URL for frontend/browser
 	MobileSupabaseURL      string `mapstructure:"mobile_supabase_url"`
 	SupabaseAnonKey        string `mapstructure:"supabase_anon_key"`
 	SupabaseServiceRoleKey string `mapstructure:"supabase_service_role_key"`
@@ -98,6 +99,7 @@ func LoadConfig(path string) error {
 
 	// Bind Supabase Env Vars
 	_ = v.BindEnv("supabase_url", "SUPABASE_URL")
+	_ = v.BindEnv("public_supabase_url", "PUBLIC_SUPABASE_URL")
 	_ = v.BindEnv("mobile_supabase_url", "MOBILE_SUPABASE_URL")
 	_ = v.BindEnv("supabase_anon_key", "SUPABASE_ANON_KEY")
 	_ = v.BindEnv("supabase_service_role_key", "SUPABASE_SERVICE_ROLE_KEY")
@@ -144,6 +146,7 @@ func LoadConfig(path string) error {
 	setEnvIfEmpty("PORT", App.Port)
 
 	setEnvIfEmpty("SUPABASE_URL", App.SupabaseURL)
+	setEnvIfEmpty("PUBLIC_SUPABASE_URL", App.PublicSupabaseURL)
 	setEnvIfEmpty("MOBILE_SUPABASE_URL", App.MobileSupabaseURL)
 	setEnvIfEmpty("AGENT_URL", App.AgentURL)
 	setEnvIfEmpty("SUPABASE_ANON_KEY", App.SupabaseAnonKey)
