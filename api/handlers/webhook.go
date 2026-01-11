@@ -289,7 +289,7 @@ func (h *WebhookHandler) processDatadogWebhookLegacy(payload map[string]interfac
 
 	// Determine severity based on alert_priority (P1, P2, P3, P4)
 	// If recovered, always use "info" severity
-	severity := "warning"
+	var severity string
 	transitionLower := strings.ToLower(transition)
 
 	if strings.Contains(transitionLower, "recovered") {

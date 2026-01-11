@@ -511,6 +511,7 @@ func (h *ProviderHandler) ListExternalMonitors(c *gin.Context) {
 		args = append(args, providerID)
 		argIdx++
 	}
+	_ = argIdx // silence ineffassign
 
 	query := `
 		SELECT m.id, m.provider_id, m.organization_id, m.external_id, m.name, m.url,

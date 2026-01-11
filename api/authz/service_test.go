@@ -13,8 +13,8 @@ import (
 
 // MockAuthorizer implements Authorizer for testing
 type MockAuthorizer struct {
-	OrgRoles     map[string]map[string]Role   // userID -> orgID -> role
-	ProjectRoles map[string]map[string]Role   // userID -> projectID -> role
+	OrgRoles     map[string]map[string]Role // userID -> orgID -> role
+	ProjectRoles map[string]map[string]Role // userID -> projectID -> role
 }
 
 func NewMockAuthorizer() *MockAuthorizer {

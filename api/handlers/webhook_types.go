@@ -310,7 +310,7 @@ func (p *PrometheusAlert) ToProcessedAlert() ProcessedAlert {
 
 func (d *DatadogWebhook) ToProcessedAlert() ProcessedAlert {
 	// Determine severity based on alert_priority (P1, P2, P3, P4)
-	severity := "warning"
+	var severity string
 	transitionLower := strings.ToLower(d.Transition)
 
 	if strings.Contains(transitionLower, "recovered") {
@@ -490,7 +490,7 @@ func (p *PagerDutyWebhook) ToProcessedAlert() ProcessedAlert {
 	}
 
 	// Map urgency/priority to severity
-	severity := "warning"
+	var severity string
 	if data.Priority != nil {
 		severity = mapPagerDutyPriority(data.Priority.Name)
 	} else {
