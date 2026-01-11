@@ -1,10 +1,11 @@
 # version: "3.9"
+# Image version - set INRES_VERSION in .env or defaults to 0.1.0
 
 services:
   agent:
     container_name: inres-agent
     platform: linux/amd64
-    image: ghcr.io/phonginreallife/inres-agent:latest
+    image: ghcr.io/phonginreallife/inres-agent:${INRES_VERSION:-0.1.0}
     expose:
       - "8002"
     ports:
@@ -26,7 +27,7 @@ services:
   api:
     container_name: inres-api
     platform: linux/amd64
-    image: ghcr.io/phonginreallife/inres-api:latest
+    image: ghcr.io/phonginreallife/inres-api:${INRES_VERSION:-0.1.0}
     expose:
       - "8080"
     ports:
@@ -43,7 +44,7 @@ services:
   slack-worker:
     container_name: inres-slack-worker
     platform: linux/amd64
-    image: ghcr.io/phonginreallife/inres-slack-worker:latest
+    image: ghcr.io/phonginreallife/inres-slack-worker:${INRES_VERSION:-0.1.0}
     volumes:
       - ./volumes/config/dev.config.yaml:/app/config.yaml
     restart: unless-stopped
@@ -51,9 +52,9 @@ services:
       - inres-network
 
   web:
-    container_name: inres-web
+    container_name: inres-frontend
     platform: linux/amd64
-    image: ghcr.io/phonginreallife/inres-web:latest
+    image: ghcr.io/phonginreallife/inres-frontend:${INRES_VERSION:-0.1.0}
     expose:
       - "3000"
     ports:
