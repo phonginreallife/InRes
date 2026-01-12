@@ -65,7 +65,7 @@ def create_audit_hooks(user_id: str, session_id: str, org_id: Optional[str] = No
         if tool_use_id:
             _tool_execution_context[tool_use_id] = (time.time(), tool_name, user_id, session_id, tool_input)
 
-        logger.debug(f"📝 Audit: PreToolUse context stored - {tool_name} (id: {tool_use_id})")
+        logger.debug(f"Audit: PreToolUse context stored - {tool_name} (id: {tool_use_id})")
 
         # Return empty to allow the operation (don't modify behavior)
         return {}
@@ -126,7 +126,7 @@ def create_audit_hooks(user_id: str, session_id: str, org_id: Optional[str] = No
             project_id=project_id,
         )
 
-        logger.debug(f"📝 Audit: PostToolUse logged - {tool_name} (success={not is_error}, {duration_ms}ms)")
+        logger.debug(f"Audit: PostToolUse logged - {tool_name} (success={not is_error}, {duration_ms}ms)")
 
         return {}
 
@@ -143,7 +143,7 @@ def create_audit_hooks(user_id: str, session_id: str, org_id: Optional[str] = No
 
         # Log is already done in agent_task before SDK is called
         # This hook can add additional context if needed
-        logger.debug(f"📝 Audit: UserPromptSubmit - {len(prompt)} chars")
+        logger.debug(f"Audit: UserPromptSubmit - {len(prompt)} chars")
 
         return {}
 
@@ -171,7 +171,7 @@ def create_audit_hooks(user_id: str, session_id: str, org_id: Optional[str] = No
             metadata={"stop_hook_active": stop_hook_active},
         ))
 
-        logger.debug(f"📝 Audit: Stop logged - session {session_id}")
+        logger.debug(f"Audit: Stop logged - session {session_id}")
 
         return {}
 
@@ -237,4 +237,4 @@ def cleanup_stale_contexts(max_age_seconds: int = 3600):
         del _tool_execution_context[tool_id]
 
     if stale_ids:
-        logger.info(f"📝 Audit: Cleaned up {len(stale_ids)} stale tool contexts")
+        logger.info(f"Audit: Cleaned up {len(stale_ids)} stale tool contexts")

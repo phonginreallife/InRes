@@ -406,7 +406,7 @@ class AuditService:
             self._queue.put_nowait(event)
         except asyncio.QueueFull:
             self._events_dropped += 1
-            logger.warning(f"📝 Audit queue full, event dropped. Total dropped: {self._events_dropped}")
+            logger.warning(f"Audit queue full, event dropped. Total dropped: {self._events_dropped}")
 
     def log_sync(self, event: AuditEvent):
         """Synchronous logging (for non-async contexts)"""
@@ -449,7 +449,7 @@ class AuditService:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"📝 Audit worker error: {e}")
+                logger.error(f"Audit worker error: {e}")
                 await asyncio.sleep(1)  # Prevent tight loop on error
 
     async def _flush_buffer(self):

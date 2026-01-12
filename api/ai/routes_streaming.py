@@ -183,7 +183,7 @@ async def websocket_stream(websocket: WebSocket):
     # Verify authentication
     is_valid, result = await verify_token(token)
     if not is_valid:
-        logger.warning(f"🚫 Streaming WebSocket auth failed: {result}")
+        logger.warning(f"Streaming WebSocket auth failed: {result}")
         await websocket.close(code=4001, reason="Unauthorized")
         return
     
