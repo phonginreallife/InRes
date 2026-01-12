@@ -1,11 +1,11 @@
 #!/bin/bash
 # Test full PagerDuty webhook flow: TRIGGER -> wait -> RESOLVE
-# Usage: ./test-webhook-full-flow.sh [integration_id] [wait_seconds]
+# Usage: ./test-webhook.sh [integration_id] [wait_seconds]
 
 INTEGRATION_ID="${1:-91e3593a-58d2-4277-b1c7-6738dac61184}"
 WAIT_SECONDS="${2:-5}"
 # Use SERVER_URL env var or default to production (no trailing slash!)
-API_URL="${SERVER_URL:-https://inres.metadefender.com}"
+API_URL="${SERVER_URL:-https://<domain-name>}"
 
 # Generate unique incident key for this test
 INCIDENT_KEY="test/full-flow-$(date +%s)"

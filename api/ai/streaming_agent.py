@@ -24,13 +24,12 @@ from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 import anthropic
 from anthropic.types import (
-    ContentBlockDelta,
-    ContentBlockStart,
-    ContentBlockStop,
+    ContentBlockDeltaEvent,
+    ContentBlockStartEvent,
+    ContentBlockStopEvent,
     Message,
-    MessageStart,
-    MessageStop,
-    RawMessageStreamEvent,
+    MessageStartEvent,
+    MessageStopEvent,
     TextDelta,
     ToolUseBlock,
 )
@@ -162,7 +161,7 @@ class StreamingAgent:
                         break
                     
                     # Handle different event types
-                    if isinstance(event, ContentBlockStart):
+                    if isinstance(event, ContentBlockStartEvent):
                         content_block = event.content_block
                         if hasattr(content_block, 'type'):
                             if content_block.type == "tool_use":
@@ -173,7 +172,7 @@ class StreamingAgent:
                                 tool_input_json = ""
                                 logger.info(f"🔧 Tool use started: {content_block.name}")
                     
-                    elif isinstance(event, ContentBlockDelta):
+                    elif isinstance(event, ContentBlockDeltaEvent):
                         delta = event.delta
                         
                         # Text delta - send immediately
@@ -189,7 +188,7 @@ class StreamingAgent:
                         elif hasattr(delta, 'partial_json'):
                             tool_input_json += delta.partial_json
                     
-                    elif isinstance(event, ContentBlockStop):
+                    elif isinstance(event, ContentBlockStopEvent):
                         # Tool use complete - execute if we have executor
                         if current_tool_use and tool_input_json:
                             try:
@@ -314,7 +313,7 @@ class StreamingAgent:
                     if self._interrupted:
                         break
                     
-                    if isinstance(event, ContentBlockStart):
+                    if isinstance(event, ContentBlockStartEvent):
                         content_block = event.content_block
                         if hasattr(content_block, 'type') and content_block.type == "tool_use":
                             current_tool_use = {
@@ -323,7 +322,7 @@ class StreamingAgent:
                             }
                             tool_input_json = ""
                     
-                    elif isinstance(event, ContentBlockDelta):
+                    elif isinstance(event, ContentBlockDeltaEvent):
                         delta = event.delta
                         if hasattr(delta, 'text'):
                             text = delta.text
@@ -332,7 +331,7 @@ class StreamingAgent:
                         elif hasattr(delta, 'partial_json'):
                             tool_input_json += delta.partial_json
                     
-                    elif isinstance(event, ContentBlockStop):
+                    elif isinstance(event, ContentBlockStopEvent):
                         if current_tool_use and tool_input_json:
                             try:
                                 tool_input = json.loads(tool_input_json)
