@@ -13,6 +13,16 @@ Key Features:
 - True token streaming (not block streaming)
 - Tool support with streaming
 - Compatible with existing WebSocket infrastructure
+- Integrates with core.ToolExecutor for unified tool handling
+- Uses core.MessageHistory patterns for conversation management
+
+Module Organization:
+    This module is part of the streaming package. See also:
+    - core/base_agent.py: Abstract base class interface
+    - core/tool_executor.py: Unified tool execution
+    - core/message_history.py: Message validation and repair
+    - routes_streaming.py: WebSocket endpoint
+    - mcp_streaming_client.py: MCP server integration
 """
 
 import asyncio
