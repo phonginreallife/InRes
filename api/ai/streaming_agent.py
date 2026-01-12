@@ -152,6 +152,7 @@ class StreamingAgent:
             async with self.client.messages.stream(**request_params) as stream:
                 current_tool_use = None
                 tool_input_json = ""
+                pending_tool_results = []  # Store tool results until we have final_message
                 
                 async for event in stream:
                     # Check for interruption
@@ -170,7 +171,7 @@ class StreamingAgent:
                                     "name": content_block.name,
                                 }
                                 tool_input_json = ""
-                                logger.info(f"🔧 Tool use started: {content_block.name}")
+                                logger.debug(f"Tool use started: {content_block.name}")
                     
                     elif isinstance(event, ContentBlockDeltaEvent):
                         delta = event.delta
@@ -219,8 +220,11 @@ class StreamingAgent:
                                         "is_error": False
                                     })
                                     
-                                    # Add to conversation for next turn
-                                    self.add_tool_result(current_tool_use["id"], tool_result)
+                                    # Store tool use info for later (after we get final_message)
+                                    pending_tool_results.append({
+                                        "tool_use_id": current_tool_use["id"],
+                                        "result": tool_result
+                                    })
                                     
                             except json.JSONDecodeError as e:
                                 logger.error(f"Failed to parse tool input: {e}")
@@ -233,14 +237,45 @@ class StreamingAgent:
                 
                 # Check if we need to continue (tool use requires another turn)
                 if final_message.stop_reason == "tool_use" and tool_executor:
+                    # IMPORTANT: Add assistant message with tool_use FIRST
+                    # Convert final_message.content to proper format
+                    assistant_content = []
+                    for block in final_message.content:
+                        if hasattr(block, 'text'):
+                            assistant_content.append({"type": "text", "text": block.text})
+                        elif hasattr(block, 'id'):  # tool_use block
+                            assistant_content.append({
+                                "type": "tool_use",
+                                "id": block.id,
+                                "name": block.name,
+                                "input": block.input
+                            })
+                    
+                    # Track message count before adding for potential rollback
+                    messages_before = len(self.messages)
+                    
+                    self.messages.append({"role": "assistant", "content": assistant_content})
+                    
+                    # NOW add tool results (user message)
+                    for tr in pending_tool_results:
+                        self.add_tool_result(tr["tool_use_id"], tr["result"])
+                    
                     # Continue conversation with tool results
-                    continued_response = await self._continue_after_tools(
-                        output_queue, tool_executor
-                    )
-                    full_response += continued_response
+                    try:
+                        continued_response = await self._continue_after_tools(
+                            output_queue, tool_executor
+                        )
+                        full_response += continued_response
+                    except Exception as cont_error:
+                        # Continuation failed - add a synthetic response so history stays valid
+                        logger.error(f"Continuation failed, adding recovery message: {cont_error}")
+                        recovery_msg = f"I encountered an error while processing the tool results. Error: {str(cont_error)}"
+                        self.messages.append({"role": "assistant", "content": recovery_msg})
+                        full_response += recovery_msg
+                        await output_queue.put({"type": "delta", "content": recovery_msg})
             
-            # Add assistant response to history
-            if full_response:
+            # Add assistant response to history (only if we didn't already add via tool continuation)
+            if full_response and (not pending_tool_results or final_message.stop_reason != "tool_use"):
                 self.add_assistant_message(full_response)
             
             # Send complete signal
@@ -252,12 +287,14 @@ class StreamingAgent:
             error_msg = f"Anthropic API error: {str(e)}"
             logger.error(error_msg)
             await output_queue.put({"type": "error", "error": error_msg})
-            raise
+            # Don't raise - let the session continue with clean state
+            return ""
         except Exception as e:
             error_msg = f"Streaming error: {str(e)}"
             logger.error(error_msg, exc_info=True)
             await output_queue.put({"type": "error", "error": error_msg})
-            raise
+            # Don't raise - let the session continue with clean state
+            return ""
     
     async def _execute_tool(
         self,
@@ -308,6 +345,7 @@ class StreamingAgent:
             async with self.client.messages.stream(**request_params) as stream:
                 current_tool_use = None
                 tool_input_json = ""
+                pending_tool_results = []  # Store tool results until we have final_message
                 
                 async for event in stream:
                     if self._interrupted:
@@ -356,7 +394,11 @@ class StreamingAgent:
                                         "content": tool_result,
                                         "is_error": False
                                     })
-                                    self.add_tool_result(current_tool_use["id"], tool_result)
+                                    # Store for later (after we have final_message)
+                                    pending_tool_results.append({
+                                        "tool_use_id": current_tool_use["id"],
+                                        "result": tool_result
+                                    })
                             except json.JSONDecodeError:
                                 pass
                             finally:
@@ -367,14 +409,45 @@ class StreamingAgent:
                 
                 # Continue if more tools needed
                 if final_message.stop_reason == "tool_use" and tool_executor:
-                    continued = await self._stream_continuation(output_queue, tool_executor)
-                    full_response += continued
+                    # IMPORTANT: Add assistant message with tool_use FIRST
+                    assistant_content = []
+                    for block in final_message.content:
+                        if hasattr(block, 'text'):
+                            assistant_content.append({"type": "text", "text": block.text})
+                        elif hasattr(block, 'id'):  # tool_use block
+                            assistant_content.append({
+                                "type": "tool_use",
+                                "id": block.id,
+                                "name": block.name,
+                                "input": block.input
+                            })
+                    
+                    self.messages.append({"role": "assistant", "content": assistant_content})
+                    
+                    # NOW add tool results (user message)
+                    for tr in pending_tool_results:
+                        self.add_tool_result(tr["tool_use_id"], tr["result"])
+                    
+                    try:
+                        continued = await self._stream_continuation(output_queue, tool_executor)
+                        full_response += continued
+                    except Exception as cont_error:
+                        # Add recovery message to keep history valid
+                        logger.error(f"Nested continuation failed: {cont_error}")
+                        recovery_msg = f"Error processing: {str(cont_error)}"
+                        self.messages.append({"role": "assistant", "content": recovery_msg})
+                        full_response += recovery_msg
+                        await output_queue.put({"type": "delta", "content": recovery_msg})
             
             return full_response
             
         except Exception as e:
             logger.error(f"Continuation error: {e}", exc_info=True)
-            return ""
+            # Add a recovery message to keep conversation valid
+            recovery = "I encountered an error. Please try your request again."
+            self.messages.append({"role": "assistant", "content": recovery})
+            await output_queue.put({"type": "delta", "content": recovery})
+            return recovery
 
 
 # Pre-defined tools for incident management

@@ -12,6 +12,7 @@ import os
 import uuid
 from typing import Any, Dict
 
+import httpx
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from supabase_storage import extract_user_id_from_token
 
@@ -30,11 +31,6 @@ async def verify_token(token: str) -> tuple[bool, str]:
     if not token:
         return False, "Missing authentication token"
     
-    # Development mode: allow test token
-    if token == "test" and os.getenv("ALLOW_TEST_TOKEN", "false").lower() == "true":
-        logger.warning("⚠️ Using test token - development mode only!")
-        return True, "test-user-id"
-    
     try:
         user_id = extract_user_id_from_token(token)
         if not user_id:
@@ -45,86 +41,127 @@ async def verify_token(token: str) -> tuple[bool, str]:
         return False, "Authentication failed"
 
 
-async def tool_executor(tool_name: str, tool_input: Dict[str, Any], auth_token: str = None) -> str:
+def create_tool_executor(auth_token: str, org_id: str = None, project_id: str = None):
     """
-    Execute incident management tools via HTTP API calls.
+    Create a tool executor function with the auth token and context captured.
     
-    Makes direct HTTP calls to the backend API for proper authentication.
+    This makes HTTP calls to the backend API for proper authentication.
     """
-    import httpx
-    
-    logger.info(f"🔧 Executing tool: {tool_name} with input: {tool_input}")
-    
-    # Get API base URL from environment
     api_base = os.getenv("INRES_API_URL", "http://inres-api:8080")
     
-    headers = {
-        "Content-Type": "application/json",
-    }
-    if auth_token:
-        headers["Authorization"] = f"Bearer {auth_token}"
-    
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            if tool_name == "get_incidents":
-                params = {
-                    "limit": tool_input.get("limit", 10),
-                }
-                if tool_input.get("status"):
-                    params["status"] = tool_input["status"]
+    async def tool_executor(tool_name: str, tool_input: Dict[str, Any]) -> str:
+        logger.debug(f"Executing tool: {tool_name} with input: {tool_input}")
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {auth_token}",
+        }
+        # Add org/project context to headers for tenant isolation
+        if org_id:
+            headers["X-Org-ID"] = org_id
+        if project_id:
+            headers["X-Project-ID"] = project_id
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                if tool_name == "get_incidents":
+                    params = {"limit": tool_input.get("limit", 10)}
+                    if tool_input.get("status"):
+                        params["status"] = tool_input["status"]
+                    
+                    resp = await client.get(
+                        f"{api_base}/incidents",
+                        headers=headers,
+                        params=params
+                    )
+                    logger.debug(f"get_incidents response: {resp.status_code}")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return json.dumps(data, indent=2, default=str)
+                    return json.dumps({"error": f"API error: {resp.status_code}", "body": resp.text})
                 
-                resp = await client.get(f"{api_base}/api/incidents", headers=headers, params=params)
-                if resp.status_code == 200:
-                    return json.dumps(resp.json(), indent=2, default=str)
-                return json.dumps({"error": f"API error: {resp.status_code}"})
-            
-            elif tool_name == "get_incident_details":
-                incident_id = tool_input.get("incident_id")
-                resp = await client.get(f"{api_base}/api/incidents/{incident_id}", headers=headers)
-                if resp.status_code == 200:
-                    return json.dumps(resp.json(), indent=2, default=str)
-                return json.dumps({"error": f"Incident not found: {incident_id}"})
-            
-            elif tool_name == "get_incident_stats":
-                time_range = tool_input.get("time_range", "24h")
-                resp = await client.get(f"{api_base}/api/incidents/stats", headers=headers, params={"range": time_range})
-                if resp.status_code == 200:
-                    return json.dumps(resp.json(), indent=2, default=str)
-                # Fallback: return basic stats if endpoint doesn't exist
-                return json.dumps({
-                    "time_range": time_range,
-                    "message": "Stats endpoint not available. Use get_incidents to see current incidents.",
-                    "suggestion": "Try asking to list incidents instead."
-                })
-            
-            elif tool_name == "acknowledge_incident":
-                incident_id = tool_input.get("incident_id")
-                resp = await client.post(
-                    f"{api_base}/api/incidents/{incident_id}/acknowledge",
-                    headers=headers,
-                    json={"note": tool_input.get("note", "")}
-                )
-                if resp.status_code == 200:
-                    return json.dumps({"status": "success", "message": f"Incident {incident_id} acknowledged"})
-                return json.dumps({"error": f"Failed to acknowledge: {resp.status_code}"})
-            
-            elif tool_name == "resolve_incident":
-                incident_id = tool_input.get("incident_id")
-                resp = await client.post(
-                    f"{api_base}/api/incidents/{incident_id}/resolve",
-                    headers=headers,
-                    json={"resolution": tool_input.get("resolution", "")}
-                )
-                if resp.status_code == 200:
-                    return json.dumps({"status": "success", "message": f"Incident {incident_id} resolved"})
-                return json.dumps({"error": f"Failed to resolve: {resp.status_code}"})
-            
-            else:
-                return json.dumps({"error": f"Unknown tool: {tool_name}"})
-            
-    except Exception as e:
-        logger.error(f"Tool execution error: {e}", exc_info=True)
-        return json.dumps({"error": str(e)})
+                elif tool_name == "get_incident_details":
+                    incident_id = tool_input.get("incident_id")
+                    resp = await client.get(
+                        f"{api_base}/incidents/{incident_id}",
+                        headers=headers
+                    )
+                    logger.debug(f"get_incident_details response: {resp.status_code}")
+                    if resp.status_code == 200:
+                        return json.dumps(resp.json(), indent=2, default=str)
+                    return json.dumps({"error": f"Incident not found: {incident_id}", "status": resp.status_code})
+                
+                elif tool_name == "get_incident_stats":
+                    time_range = tool_input.get("time_range", "24h")
+                    # Try the stats endpoint
+                    resp = await client.get(
+                        f"{api_base}/incidents/stats",
+                        headers=headers,
+                        params={"range": time_range}
+                    )
+                    logger.debug(f"get_incident_stats response: {resp.status_code}")
+                    if resp.status_code == 200:
+                        return json.dumps(resp.json(), indent=2, default=str)
+                    # Fallback: get incidents and calculate stats
+                    resp = await client.get(
+                        f"{api_base}/incidents",
+                        headers=headers,
+                        params={"limit": 100}
+                    )
+                    logger.debug(f"get_incident_stats response: {resp.status_code}")
+                    if resp.status_code == 200:
+                        incidents = resp.json()
+                        # Calculate basic stats
+                        if isinstance(incidents, list):
+                            total = len(incidents)
+                            by_status = {}
+                            by_severity = {}
+                            for inc in incidents:
+                                status = inc.get("status", "unknown")
+                                severity = inc.get("severity", "unknown")
+                                by_status[status] = by_status.get(status, 0) + 1
+                                by_severity[severity] = by_severity.get(severity, 0) + 1
+                            return json.dumps({
+                                "time_range": time_range,
+                                "total_incidents": total,
+                                "by_status": by_status,
+                                "by_severity": by_severity,
+                            }, indent=2)
+                    return json.dumps({"error": "Could not fetch incident stats"})
+                
+                elif tool_name == "acknowledge_incident":
+                    incident_id = tool_input.get("incident_id")
+                    resp = await client.post(
+                        f"{api_base}/incidents/{incident_id}/acknowledge",
+                        headers=headers,
+                        json={"note": tool_input.get("note", "")}
+                    )
+                    if resp.status_code == 200:
+                        return json.dumps({"status": "success", "message": f"Incident {incident_id} acknowledged"})
+                    return json.dumps({"error": f"Failed to acknowledge: {resp.status_code}"})
+                
+                elif tool_name == "resolve_incident":
+                    incident_id = tool_input.get("incident_id")
+                    resp = await client.post(
+                        f"{api_base}/incidents/{incident_id}/resolve",
+                        headers=headers,
+                        json={"resolution": tool_input.get("resolution", "")}
+                    )
+                    if resp.status_code == 200:
+                        return json.dumps({"status": "success", "message": f"Incident {incident_id} resolved"})
+                    return json.dumps({"error": f"Failed to resolve: {resp.status_code}"})
+                
+                else:
+                    return json.dumps({"error": f"Unknown tool: {tool_name}"})
+                    
+        except httpx.TimeoutException:
+            logger.error(f"Tool {tool_name} timed out")
+            return json.dumps({"error": f"Tool {tool_name} timed out"})
+        except Exception as e:
+            logger.error(f"Tool execution error: {e}", exc_info=True)
+            return json.dumps({"error": str(e)})
+    
+    return tool_executor
 
 
 @router.websocket("/ws/stream")
@@ -137,13 +174,11 @@ async def websocket_stream(websocket: WebSocket):
     2. Client sends: {"prompt": "...", "session_id": "..."}
     3. Server streams: {"type": "delta", "content": "token"}
     4. Server sends: {"type": "complete"} when done
-    
-    Special messages:
-    - {"type": "interrupt"} - Stop current generation
-    - {"type": "clear_history"} - Clear conversation history
     """
-    # Get token from query params
+    # Get token and context from query params
     token = websocket.query_params.get("token")
+    org_id = websocket.query_params.get("org_id")
+    project_id = websocket.query_params.get("project_id")
     
     # Verify authentication
     is_valid, result = await verify_token(token)
@@ -154,7 +189,7 @@ async def websocket_stream(websocket: WebSocket):
     
     user_id = result
     await websocket.accept()
-    logger.info(f"✅ Streaming WebSocket connected for user: {user_id}")
+    logger.info(f"✅ Streaming WebSocket connected for user: {user_id}, org: {org_id}")
     
     # Generate session ID
     session_id = str(uuid.uuid4())
@@ -162,6 +197,9 @@ async def websocket_stream(websocket: WebSocket):
     # Create streaming agent for this session
     agent = create_streaming_agent(include_tools=True)
     active_sessions[session_id] = agent
+    
+    # Create tool executor with auth token and org context
+    tool_executor = create_tool_executor(token, org_id, project_id)
     
     # Send session info to client
     await websocket.send_json({
@@ -243,16 +281,12 @@ async def websocket_stream(websocket: WebSocket):
                     except asyncio.CancelledError:
                         pass
                 
-                # Create tool executor with auth token captured
-                async def execute_tool_with_auth(tool_name: str, tool_input: Dict[str, Any]) -> str:
-                    return await tool_executor(tool_name, tool_input, auth_token=token)
-                
                 # Start streaming response
                 stream_task = asyncio.create_task(
                     agent.stream_response(
                         prompt=prompt,
                         output_queue=output_queue,
-                        tool_executor=execute_tool_with_auth
+                        tool_executor=tool_executor
                     )
                 )
                 
