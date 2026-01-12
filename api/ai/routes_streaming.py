@@ -21,7 +21,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from supabase_storage import extract_user_id_from_token, get_user_mcp_servers
 
 from streaming_agent import StreamingAgent, INCIDENT_TOOLS
-from mcp_streaming_client import MCPToolManager
+from mcp_streaming_client import MCPToolManager, get_mcp_pool
 
 logger = logging.getLogger(__name__)
 
@@ -208,9 +208,10 @@ async def websocket_stream(websocket: WebSocket):
     # Generate session ID
     session_id = str(uuid.uuid4())
     
-    # Initialize MCP tool manager
-    mcp_manager = MCPToolManager()
+    # Initialize MCP tool manager using connection pool
+    mcp_manager = None
     mcp_tools = []
+    use_pool = True  # Use pooled connections for scalability
     
     try:
         # Load user's MCP servers from database
@@ -219,17 +220,27 @@ async def websocket_stream(websocket: WebSocket):
         
         if user_mcp_config:
             logger.info(f"Found {len(user_mcp_config)} MCP server configs")
-            started = await mcp_manager.add_servers_from_config(user_mcp_config)
-            logger.info(f"Started {started} MCP servers")
+            
+            if use_pool:
+                # Use global pool for scalability (shared servers across sessions)
+                pool = await get_mcp_pool()
+                mcp_manager = await pool.get_servers_for_user(user_id, user_mcp_config)
+                logger.info(f"Pool stats: {pool.stats}")
+            else:
+                # Per-session mode (isolated but resource-heavy)
+                mcp_manager = MCPToolManager()
+                await mcp_manager.add_servers_from_config(user_mcp_config)
             
             # Get tools from MCP servers
             mcp_tools = mcp_manager.get_all_tools()
             logger.info(f"Loaded {len(mcp_tools)} MCP tools: {[t['name'] for t in mcp_tools]}")
         else:
             logger.info("No MCP servers configured for user")
+            mcp_manager = MCPToolManager()  # Empty manager
             
     except Exception as e:
         logger.error(f"Failed to load MCP servers: {e}", exc_info=True)
+        mcp_manager = MCPToolManager()  # Fallback to empty manager
     
     # Combine built-in tools with MCP tools
     all_tools = INCIDENT_TOOLS.copy()
@@ -366,8 +377,15 @@ Be concise but thorough in your responses."""
             await output_queue.put(None)
             sender_task.cancel()
         
-        # Shutdown MCP servers
-        await mcp_manager.shutdown()
+        # Release MCP servers (pool handles actual cleanup)
+        if use_pool:
+            try:
+                pool = await get_mcp_pool()
+                await pool.release_servers_for_user(user_id)
+            except Exception as e:
+                logger.error(f"Failed to release pooled servers: {e}")
+        elif mcp_manager:
+            await mcp_manager.shutdown()
         
         # Remove session
         if session_id in active_sessions:
@@ -378,15 +396,16 @@ Be concise but thorough in your responses."""
 
 @router.get("/streaming/status")
 async def streaming_status():
-    """Get status of streaming service."""
-    total_mcp_servers = sum(
-        s.get("mcp_manager", MCPToolManager()).server_count 
-        for s in active_sessions.values()
-    )
+    """Get status of streaming service including pool statistics."""
+    try:
+        pool = await get_mcp_pool()
+        pool_stats = pool.stats
+    except Exception:
+        pool_stats = {"error": "Pool not initialized"}
     
     return {
         "status": "ok",
         "active_sessions": len(active_sessions),
         "builtin_tools": len(INCIDENT_TOOLS),
-        "active_mcp_servers": total_mcp_servers
+        "pool": pool_stats
     }
