@@ -7,6 +7,10 @@ from the Anthropic API to the frontend in real-time.
 HYBRID APPROACH:
 - Token streaming for text responses (fast UX)
 - MCP tool support for user-configured integrations (Confluence, Coralogix, etc.)
+
+INTEGRATIONS:
+- Uses core.ToolExecutor for unified tool handling
+- Uses core.ToolContext for mutable org/project context
 """
 
 import asyncio
@@ -16,12 +20,14 @@ import os
 import uuid
 from typing import Any, Dict, Optional
 
-import httpx
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from supabase_storage import extract_user_id_from_token, get_user_mcp_servers
 
 from streaming_agent import StreamingAgent, INCIDENT_TOOLS
 from mcp_streaming_client import MCPToolManager, get_mcp_pool
+
+# Use core module for unified tool execution
+from core.tool_executor import ToolExecutor, ToolContext, create_tool_executor
 
 logger = logging.getLogger(__name__)
 
@@ -46,154 +52,8 @@ async def verify_token(token: str) -> tuple[bool, str]:
         return False, "Authentication failed"
 
 
-class ToolContext:
-    """Mutable context for tool execution that can be updated per message."""
-    def __init__(self, org_id: str = None, project_id: str = None):
-        self.org_id = org_id
-        self.project_id = project_id
-    
-    def update(self, org_id: str = None, project_id: str = None):
-        """Update context with new values (only if provided)."""
-        if org_id:
-            self.org_id = org_id
-        if project_id:
-            self.project_id = project_id
-
-
-def create_hybrid_tool_executor(
-    auth_token: str,
-    context: ToolContext,
-    mcp_manager: Optional[MCPToolManager] = None
-):
-    """
-    Create a hybrid tool executor that handles both built-in and MCP tools.
-    
-    - Built-in tools (get_incidents, etc.): HTTP calls to backend API
-    - MCP tools (mcp__*): Routed to MCP servers via subprocess
-    
-    The context object is mutable and can be updated per message to support
-    dynamic org_id/project_id from the message body.
-    """
-    api_base = os.getenv("INRES_API_URL", "http://inres-api:8080")
-    
-    async def tool_executor(tool_name: str, tool_input: Dict[str, Any]) -> str:
-        logger.info(f"Executing tool: {tool_name} with context org_id={context.org_id}, project_id={context.project_id}")
-        
-        # Route MCP tools to MCP manager
-        if tool_name.startswith("mcp__") and mcp_manager:
-            logger.info(f"Routing to MCP: {tool_name}")
-            return await mcp_manager.call_tool(tool_name, tool_input)
-        
-        # Built-in tools via HTTP
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth_token}",
-        }
-        if context.org_id:
-            headers["X-Org-ID"] = context.org_id
-        if context.project_id:
-            headers["X-Project-ID"] = context.project_id
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                if tool_name == "get_incidents":
-                    params = {"limit": tool_input.get("limit", 10)}
-                    if tool_input.get("status"):
-                        params["status"] = tool_input["status"]
-                    
-                    resp = await client.get(
-                        f"{api_base}/incidents",
-                        headers=headers,
-                        params=params
-                    )
-                    if resp.status_code == 200:
-                        return json.dumps(resp.json(), indent=2, default=str)
-                    return json.dumps({"error": f"API error: {resp.status_code}"})
-                
-                elif tool_name == "get_incident_details":
-                    incident_id = tool_input.get("incident_id")
-                    logger.info(f"Fetching incident {incident_id} with headers: X-Org-ID={headers.get('X-Org-ID')}, X-Project-ID={headers.get('X-Project-ID')}")
-                    resp = await client.get(
-                        f"{api_base}/incidents/{incident_id}",
-                        headers=headers
-                    )
-                    if resp.status_code == 200:
-                        return json.dumps(resp.json(), indent=2, default=str)
-                    # Log full error for debugging
-                    error_body = resp.text
-                    logger.error(f"Failed to fetch incident {incident_id}: status={resp.status_code}, body={error_body}")
-                    return json.dumps({
-                        "error": f"Incident not found: {incident_id}",
-                        "status_code": resp.status_code,
-                        "details": error_body[:500] if error_body else None
-                    })
-                
-                elif tool_name == "get_incident_stats":
-                    time_range = tool_input.get("time_range", "24h")
-                    resp = await client.get(
-                        f"{api_base}/incidents/stats",
-                        headers=headers,
-                        params={"range": time_range}
-                    )
-                    if resp.status_code == 200:
-                        return json.dumps(resp.json(), indent=2, default=str)
-                    # Fallback: calculate from incidents
-                    resp = await client.get(
-                        f"{api_base}/incidents",
-                        headers=headers,
-                        params={"limit": 100}
-                    )
-                    if resp.status_code == 200:
-                        incidents = resp.json()
-                        if isinstance(incidents, list):
-                            by_status = {}
-                            by_severity = {}
-                            for inc in incidents:
-                                status = inc.get("status", "unknown")
-                                severity = inc.get("severity", "unknown")
-                                by_status[status] = by_status.get(status, 0) + 1
-                                by_severity[severity] = by_severity.get(severity, 0) + 1
-                            return json.dumps({
-                                "time_range": time_range,
-                                "total_incidents": len(incidents),
-                                "by_status": by_status,
-                                "by_severity": by_severity,
-                            }, indent=2)
-                    return json.dumps({"error": "Could not fetch incident stats"})
-                
-                elif tool_name == "acknowledge_incident":
-                    incident_id = tool_input.get("incident_id")
-                    resp = await client.post(
-                        f"{api_base}/incidents/{incident_id}/acknowledge",
-                        headers=headers,
-                        json={"note": tool_input.get("note", "")}
-                    )
-                    if resp.status_code == 200:
-                        return json.dumps({"status": "success", "message": f"Incident {incident_id} acknowledged"})
-                    return json.dumps({"error": f"Failed to acknowledge: {resp.status_code}"})
-                
-                elif tool_name == "resolve_incident":
-                    incident_id = tool_input.get("incident_id")
-                    resp = await client.post(
-                        f"{api_base}/incidents/{incident_id}/resolve",
-                        headers=headers,
-                        json={"resolution": tool_input.get("resolution", "")}
-                    )
-                    if resp.status_code == 200:
-                        return json.dumps({"status": "success", "message": f"Incident {incident_id} resolved"})
-                    return json.dumps({"error": f"Failed to resolve: {resp.status_code}"})
-                
-                else:
-                    return json.dumps({"error": f"Unknown tool: {tool_name}"})
-                    
-        except httpx.TimeoutException:
-            logger.error(f"Tool {tool_name} timed out")
-            return json.dumps({"error": f"Tool {tool_name} timed out"})
-        except Exception as e:
-            logger.error(f"Tool execution error: {e}", exc_info=True)
-            return json.dumps({"error": str(e)})
-    
-    return tool_executor
+# Note: ToolContext and create_tool_executor are now imported from core.tool_executor
+# This eliminates ~150 lines of duplicated tool execution code
 
 
 @router.websocket("/ws/stream")
@@ -305,8 +165,14 @@ Be concise but thorough in your responses."""
     # Create mutable tool context (can be updated per message)
     tool_context = ToolContext(org_id=org_id, project_id=project_id)
     
-    # Create hybrid tool executor with mutable context
-    tool_executor = create_hybrid_tool_executor(token, tool_context, mcp_manager)
+    # Create unified tool executor using core module
+    tool_executor = create_tool_executor(
+        auth_token=token,
+        context=tool_context,
+        mcp_manager=mcp_manager,
+        user_id=user_id,
+        session_id=session_id
+    )
     
     # Send session info to client
     await websocket.send_json({

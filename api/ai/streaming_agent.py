@@ -44,6 +44,10 @@ from anthropic.types import (
     ToolUseBlock,
 )
 
+# Import core abstractions
+from core.base_agent import BaseAgent, AgentConfig, AgentFactory
+from core.message_history import MessageHistory
+
 logger = logging.getLogger(__name__)
 
 # Default system prompt for incident response
@@ -52,15 +56,19 @@ You help users manage incidents, analyze alerts, and troubleshoot issues.
 Be concise but thorough in your responses."""
 
 
-class StreamingAgent:
+class StreamingAgent(BaseAgent):
     """
     Agent that streams tokens from Anthropic API to output queue.
+    
+    Inherits from BaseAgent to ensure interface compatibility with
+    legacy mode and enable runtime switching via AgentFactory.
     
     Supports:
     - Token-by-token text streaming
     - Tool calls with streaming
     - Multi-turn conversations
     - Interruption handling
+    - MessageHistory for validated conversation management
     """
     
     def __init__(
@@ -70,27 +78,53 @@ class StreamingAgent:
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         tools: List[Dict[str, Any]] = None,
         max_tokens: int = 4096,
+        config: AgentConfig = None,  # For BaseAgent compatibility
     ):
+        # Initialize BaseAgent
+        if config is None:
+            config = AgentConfig(
+                model=model,
+                max_tokens=max_tokens,
+                system_prompt=system_prompt,
+                tools=tools or []
+            )
+        super().__init__(config)
+        
+        # Streaming-specific initialization
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.model = model
-        self.system_prompt = system_prompt
-        self.tools = tools or []
-        self.max_tokens = max_tokens
+        self.model = config.model
+        self.system_prompt = config.system_prompt
+        self.tools = config.tools
+        self.max_tokens = config.max_tokens
         self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
         
-        # Conversation history
-        self.messages: List[Dict[str, Any]] = []
+        # Use MessageHistory for validated conversation management
+        self._history = MessageHistory()
         
-        # Interrupt flag
-        self._interrupted = False
+        # Legacy compatibility: expose messages as property
+        # This allows existing code to still access self.messages
+    
+    @property
+    def messages(self) -> List[Dict[str, Any]]:
+        """Legacy compatibility: access messages as list."""
+        return self._history.to_api_format()
+    
+    @messages.setter
+    def messages(self, value: List[Dict[str, Any]]) -> None:
+        """Legacy compatibility: set messages from list."""
+        self._history = MessageHistory(messages=value)
     
     def add_user_message(self, content: str) -> None:
         """Add a user message to conversation history."""
-        self.messages.append({"role": "user", "content": content})
+        self._history.add_user_message(content)
     
     def add_assistant_message(self, content: str) -> None:
         """Add an assistant message to conversation history."""
-        self.messages.append({"role": "assistant", "content": content})
+        self._history.add_assistant_message(content)
+    
+    def add_assistant_with_content(self, content: List[Dict[str, Any]]) -> None:
+        """Add assistant message with structured content (text + tool_use blocks)."""
+        self._history.add_assistant_with_content(content)
     
     def add_tool_result(self, tool_use_id: str, result: str) -> None:
         """Add a tool result to conversation history.
@@ -99,14 +133,7 @@ class StreamingAgent:
         This method is kept for backwards compatibility but should be
         used only when there's a single tool result.
         """
-        self.messages.append({
-            "role": "user",
-            "content": [{
-                "type": "tool_result",
-                "tool_use_id": tool_use_id,
-                "content": result
-            }]
-        })
+        self._history.add_tool_results([{"tool_use_id": tool_use_id, "result": result}])
     
     def add_tool_results(self, results: list) -> None:
         """Add multiple tool results in a single user message.
@@ -117,136 +144,43 @@ class StreamingAgent:
         Args:
             results: List of dicts with 'tool_use_id' and 'result' keys
         """
-        if not results:
-            return
-        
-        content = []
-        for tr in results:
-            content.append({
-                "type": "tool_result",
-                "tool_use_id": tr["tool_use_id"],
-                "content": tr["result"]
-            })
-        
-        self.messages.append({
-            "role": "user",
-            "content": content
-        })
-    
-    def interrupt(self) -> None:
-        """Signal to interrupt current streaming."""
-        self._interrupted = True
-    
-    def reset_interrupt(self) -> None:
-        """Reset interrupt flag for new query."""
-        self._interrupted = False
+        self._history.add_tool_results(results)
     
     def clear_history(self) -> None:
-        """Clear conversation history."""
-        self.messages = []
+        """Clear conversation history (implements BaseAgent interface)."""
+        self._history.clear()
+    
+    def get_history(self) -> List[Dict[str, Any]]:
+        """Get conversation history (implements BaseAgent interface)."""
+        return self._history.to_api_format()
+    
+    async def process_message(
+        self,
+        prompt: str,
+        output_queue: asyncio.Queue,
+        tool_executor: Callable[[str, Dict], Any] = None,
+    ) -> str:
+        """
+        Process a user message (implements BaseAgent interface).
+        
+        This is an alias for stream_response() to conform to the BaseAgent
+        interface, enabling runtime switching between agent implementations.
+        
+        See stream_response() for full documentation.
+        """
+        return await self.stream_response(prompt, output_queue, tool_executor)
     
     def validate_and_fix_history(self) -> None:
         """
         Validate conversation history and fix any issues that would cause API errors.
         
-        The most common issue is dangling tool_use blocks without corresponding
-        tool_result blocks. This can happen when:
-        - Tool execution fails
-        - Connection is interrupted
-        - Previous error recovery didn't clean up properly
-        
-        Fix strategy: If we find an assistant message with tool_use blocks not
-        followed by a user message with matching tool_results, we either:
-        1. Add synthetic tool_results if we can identify the missing IDs
-        2. Remove the problematic messages
+        Delegates to MessageHistory.validate_and_repair() which handles:
+        - Dangling tool_use blocks without corresponding tool_results
+        - Missing tool_results after tool_use
+        - Recovery from interrupted/failed tool execution
         """
-        if len(self.messages) < 2:
-            return
-        
-        fixed = False
-        i = 0
-        
-        while i < len(self.messages):
-            msg = self.messages[i]
-            
-            # Check if this is an assistant message with tool_use blocks
-            if msg.get("role") == "assistant":
-                content = msg.get("content", [])
-                
-                # Find tool_use blocks in this message
-                tool_use_ids = set()
-                if isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "tool_use":
-                            tool_use_ids.add(block.get("id"))
-                
-                if tool_use_ids:
-                    # This assistant message has tool_use blocks
-                    # The next message MUST be a user message with tool_result blocks
-                    
-                    if i + 1 >= len(self.messages):
-                        # No next message - add synthetic results
-                        logger.warning(f"Dangling tool_use at end of history, adding synthetic results")
-                        self.messages.append({
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tid,
-                                    "content": "Tool execution was interrupted. Please try again."
-                                }
-                                for tid in tool_use_ids
-                            ]
-                        })
-                        fixed = True
-                        break
-                    
-                    next_msg = self.messages[i + 1]
-                    
-                    # Check if next message is a user message with tool_results
-                    if next_msg.get("role") != "user":
-                        # Wrong! Need to insert tool_results
-                        logger.warning(f"Missing tool_result after tool_use, inserting synthetic results")
-                        synthetic_results = {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": tid,
-                                    "content": "Tool execution was interrupted. Please try again."
-                                }
-                                for tid in tool_use_ids
-                            ]
-                        }
-                        self.messages.insert(i + 1, synthetic_results)
-                        fixed = True
-                        i += 1  # Skip the inserted message
-                    else:
-                        # Next message is user - check if it has the right tool_results
-                        next_content = next_msg.get("content", [])
-                        result_ids = set()
-                        
-                        if isinstance(next_content, list):
-                            for block in next_content:
-                                if isinstance(block, dict) and block.get("type") == "tool_result":
-                                    result_ids.add(block.get("tool_use_id"))
-                        
-                        missing_ids = tool_use_ids - result_ids
-                        if missing_ids:
-                            # Some tool_use IDs don't have results - add them
-                            logger.warning(f"Missing tool_results for IDs: {missing_ids}")
-                            for tid in missing_ids:
-                                if isinstance(next_content, list):
-                                    next_content.append({
-                                        "type": "tool_result",
-                                        "tool_use_id": tid,
-                                        "content": "Tool result was lost. Please try again."
-                                    })
-                                    fixed = True
-            
-            i += 1
-        
-        if fixed:
+        repaired = self._history.validate_and_repair()
+        if repaired:
             logger.info("Conversation history was fixed to resolve tool_use/tool_result mismatches")
     
     async def stream_response(
@@ -412,10 +346,8 @@ class StreamingAgent:
                                 "input": block.input
                             })
                     
-                    # Track message count before adding for potential rollback
-                    messages_before = len(self.messages)
-                    
-                    self.messages.append({"role": "assistant", "content": assistant_content})
+                    # Add assistant message with tool_use content using proper method
+                    self.add_assistant_with_content(assistant_content)
                     
                     # NOW add tool results (user message) - ALL in ONE message!
                     # The Anthropic API requires all tool_results for one assistant
@@ -432,7 +364,7 @@ class StreamingAgent:
                         # Continuation failed - add a synthetic response so history stays valid
                         logger.error(f"Continuation failed, adding recovery message: {cont_error}")
                         recovery_msg = f"I encountered an error while processing the tool results. Error: {str(cont_error)}"
-                        self.messages.append({"role": "assistant", "content": recovery_msg})
+                        self.add_assistant_message(recovery_msg)
                         full_response += recovery_msg
                         await output_queue.put({"type": "delta", "content": recovery_msg})
             
@@ -453,7 +385,7 @@ class StreamingAgent:
             # This happens when tool_use blocks don't have corresponding tool_result blocks
             if "tool_use" in str(e) and "tool_result" in str(e):
                 logger.warning("Detected corrupted message history (tool_use without tool_result), clearing history")
-                self.messages = []
+                self.clear_history()
             return ""
         except Exception as e:
             error_msg = f"Streaming error: {str(e)}"
@@ -591,7 +523,7 @@ class StreamingAgent:
                                 "input": block.input
                             })
                     
-                    self.messages.append({"role": "assistant", "content": assistant_content})
+                    self.add_assistant_with_content(assistant_content)
                     
                     # NOW add tool results (user message) - ALL in ONE message!
                     self.add_tool_results(pending_tool_results)
@@ -603,7 +535,7 @@ class StreamingAgent:
                         # Add recovery message to keep history valid
                         logger.error(f"Nested continuation failed: {cont_error}")
                         recovery_msg = f"Error processing: {str(cont_error)}"
-                        self.messages.append({"role": "assistant", "content": recovery_msg})
+                        self.add_assistant_message(recovery_msg)
                         full_response += recovery_msg
                         await output_queue.put({"type": "delta", "content": recovery_msg})
             
@@ -613,7 +545,7 @@ class StreamingAgent:
             logger.error(f"Continuation error: {e}", exc_info=True)
             # Add a recovery message to keep conversation valid
             recovery = "I encountered an error. Please try your request again."
-            self.messages.append({"role": "assistant", "content": recovery})
+            self.add_assistant_message(recovery)
             await output_queue.put({"type": "delta", "content": recovery})
             return recovery
 
@@ -728,3 +660,7 @@ def create_streaming_agent(
     """
     tools = INCIDENT_TOOLS if include_tools else []
     return StreamingAgent(api_key=api_key, tools=tools)
+
+
+# Register with AgentFactory for runtime switching
+AgentFactory.register("streaming", StreamingAgent)
