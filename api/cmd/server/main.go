@@ -104,7 +104,7 @@ func main() {
 	// Initialize realtime broadcast service for live notifications
 	broadcastService := services.NewRealtimeBroadcastService()
 	incidentService.SetBroadcastService(broadcastService)
-	log.Println("✅ Realtime broadcast service initialized")
+	log.Println("  Realtime broadcast service initialized")
 
 	incidentWorker := workers.NewIncidentWorker(db, incidentService, notificationWorker)
 

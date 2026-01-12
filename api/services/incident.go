@@ -1730,9 +1730,9 @@ func (s *IncidentService) ManualEscalateIncident(incidentID, userID string) (*db
 		go func() {
 			err := s.NotificationWorker.SendIncidentEscalatedNotification(assignedUserID, incidentID)
 			if err != nil {
-				log.Printf("⚠️  Failed to send escalation notification: %v", err)
+				log.Printf("Failed to send escalation notification: %v", err)
 			} else {
-				log.Printf("✅ Sent escalation notification to user %s", assignedUserID)
+				log.Printf("  Sent escalation notification to user %s", assignedUserID)
 			}
 		}()
 	}
@@ -1890,4 +1890,24 @@ func (s *IncidentService) FindIncidentByFingerprint(fingerprint string) (*db.Inc
 
 	log.Printf("DEBUG: Found incident %s with fingerprint %s", incident.ID, fingerprint)
 	return &incident, nil
+}
+
+// IncrementAlertCount increments the alert count for an existing incident (for deduplication)
+func (s *IncidentService) IncrementAlertCount(incidentID string) error {
+	log.Printf("DEBUG: Incrementing alert count for incident %s", incidentID)
+
+	_, err := s.PG.Exec(`
+		UPDATE incidents 
+		SET alert_count = alert_count + 1,
+		    updated_at = NOW()
+		WHERE id = $1
+	`, incidentID)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to increment alert count for incident %s: %v", incidentID, err)
+		return err
+	}
+
+	log.Printf("DEBUG: Successfully incremented alert count for incident %s", incidentID)
+	return nil
 }

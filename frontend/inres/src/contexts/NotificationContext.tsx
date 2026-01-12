@@ -147,7 +147,7 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
     };
 
     addNotification(notification);
-    console.log('✅ Test notification added');
+    console.log('  Test notification added');
   }, [addNotification]);
 
   // Subscribe to Supabase realtime
@@ -265,12 +265,12 @@ export const NotificationProvider = ({ children }: NotificationProviderProps) =>
               timestamp: new Date(),
             };
             addNotification(testNotif);
-            console.log('✅ Test notification added!');
+            console.log('  Test notification added!');
           };
           console.log('💡 Test with: window.__testNotification()');
         }
 
-        console.log('✅ Realtime notifications initialized for org:', currentOrg.id);
+        console.log('  Realtime notifications initialized for org:', currentOrg.id);
       } catch (error) {
         console.error('Failed to setup realtime notifications:', error);
         setIsConnected(false);

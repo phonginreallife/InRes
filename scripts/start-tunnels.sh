@@ -56,7 +56,7 @@ SUPABASE_URL=$(grep -o 'https://[^|]*trycloudflare.com' "$TUNNEL_DIR/supabase.lo
 
 echo ""
 echo "=============================================="
-echo "✅ Tunnels are ready!"
+echo "  Tunnels are ready!"
 echo "=============================================="
 echo ""
 echo "📱 Frontend:  $FRONTEND_URL"

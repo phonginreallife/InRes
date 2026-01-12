@@ -38,4 +38,4 @@ curl -s -X POST "${API_URL}/webhook/pagerduty/${INTEGRATION_ID}" \
     }
   }' 
 echo ""
-echo "✅ Done! Check the frontend for the new incident."
+echo "  Done! Check the frontend for the new incident."

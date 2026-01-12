@@ -44,7 +44,7 @@ func (s *IncidentAnalyticsService) QueueIncidentForAnalysis(incident *db.Inciden
 	// Check if AI Pilot is enabled
 	if !config.App.AIIncidentAnalytics.Enabled {
 		// Log only at debug level (or not at all?) - using Printf for now as info
-		log.Printf("ℹ️  AI Pilot disabled, skipping analysis for incident %s", incident.ID)
+		log.Printf("AI Pilot disabled, skipping analysis for incident %s", incident.ID)
 		return nil
 	}
 
@@ -100,7 +100,7 @@ func (s *IncidentAnalyticsService) QueueIncidentForAnalysis(incident *db.Inciden
 func (s *IncidentAnalyticsService) QueueIncidentForAnalysisAsync(incident *db.Incident) {
 	go func() {
 		if err := s.QueueIncidentForAnalysis(incident); err != nil {
-			log.Printf("⚠️  Failed to queue incident %s for analysis: %v", incident.ID, err)
+			log.Printf("Failed to queue incident %s for analysis: %v", incident.ID, err)
 		}
 	}()
 }
@@ -117,10 +117,10 @@ func (s *IncidentAnalyticsService) CreateQueueIfNotExists() error {
 	if err != nil {
 		// Queue might already exist, which is fine
 		// PGMQ create is idempotent, so we can ignore errors
-		log.Printf("ℹ️  PGMQ queue '%s' setup (might already exist): %v", queueName, err)
+		log.Printf("PGMQ queue '%s' setup (might already exist): %v", queueName, err)
 		return nil
 	}
 
-	log.Printf("✅ PGMQ queue '%s' ready", queueName)
+	log.Printf("  PGMQ queue '%s' ready", queueName)
 	return nil
 }

@@ -27,7 +27,7 @@ def load_config():
             logger.warning(f"⚠️  Config file {config_path} is empty")
             return
 
-        logger.info(f"✅ Loaded config from {config_path}")
+        logger.info(f"  Loaded config from {config_path}")
         
         # Map config keys to environment variables
         env_mapping = {

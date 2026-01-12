@@ -85,7 +85,7 @@ export const uploadSkillFile = async (userId, file) => {
         };
       }
 
-      console.log(`✅ Bucket created: ${userId}`);
+      console.log(`  Bucket created: ${userId}`);
     }
 
     // Upload skill file to skills/ directory
@@ -106,7 +106,7 @@ export const uploadSkillFile = async (userId, file) => {
       };
     }
 
-    console.log(`✅ Skill file uploaded: ${userId}/${skillPath}`);
+    console.log(`  Skill file uploaded: ${userId}/${skillPath}`);
 
     return {
       success: true,
@@ -186,7 +186,7 @@ export const deleteSkillFile = async (userId, skillFileName) => {
       return { success: false, error: error.message };
     }
 
-    console.log(`✅ Skill file deleted: ${userId}/${skillPath}`);
+    console.log(`  Skill file deleted: ${userId}/${skillPath}`);
     return { success: true };
   } catch (error) {
     console.error('Unexpected error in deleteSkillFile:', error);

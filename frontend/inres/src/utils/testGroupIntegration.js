@@ -31,7 +31,7 @@ export async function testGroupsIntegration() {
     };
     
     const signUpResult = await signUp(testUser.email, testUser.password, testUser.metadata);
-    console.log('✅ User signed up:', signUpResult.user?.id);
+    console.log('  User signed up:', signUpResult.user?.id);
     
     // Test 2: Sign in to get session
     console.log('\n🔐 Test 2: User Sign In');
@@ -41,13 +41,13 @@ export async function testGroupsIntegration() {
     }
     
     apiClient.setToken(signInResult.session.access_token);
-    console.log('✅ User signed in, token set');
+    console.log('  User signed in, token set');
     
     // Test 3: Auto-sync trigger (first API call)
     console.log('\n🔄 Test 3: Auto-sync trigger');
     try {
       const myGroups = await apiClient.getMyGroups();
-      console.log('✅ Auto-sync triggered, user record created');
+      console.log('  Auto-sync triggered, user record created');
       console.log('📊 My groups:', myGroups.groups?.length || 0);
     } catch (error) {
       console.log('⚠️ Auto-sync may need manual trigger');
@@ -63,7 +63,7 @@ export async function testGroupsIntegration() {
       escalation_timeout: 300,
       escalation_method: 'parallel'
     });
-    console.log('✅ Private group created:', privateGroup.id);
+    console.log('  Private group created:', privateGroup.id);
     
     // Test 5: Create a public group
     console.log('\n🌍 Test 5: Create Public Group');
@@ -73,7 +73,7 @@ export async function testGroupsIntegration() {
       type: 'notification',
       visibility: 'public'
     });
-    console.log('✅ Public group created:', publicGroup.id);
+    console.log('  Public group created:', publicGroup.id);
     
     // Test 6: Test user-scoped endpoints
     console.log('\n🔍 Test 6: User-scoped endpoints');
@@ -88,7 +88,7 @@ export async function testGroupsIntegration() {
     for (const endpoint of allEndpoints) {
       try {
         const result = await endpoint.call();
-        console.log(`✅ ${endpoint.name}: ${result.groups?.length || 0} groups`);
+        console.log(`  ${endpoint.name}: ${result.groups?.length || 0} groups`);
       } catch (error) {
         console.log(`❌ ${endpoint.name}: ${error.message}`);
       }
@@ -112,11 +112,11 @@ export async function testGroupsIntegration() {
           sms: false
         }
       });
-      console.log('✅ Added self as member to public group');
+      console.log('  Added self as member to public group');
       
       // Get group with members
       const groupWithMembers = await apiClient.getGroupWithMembers(publicGroup.id);
-      console.log('✅ Group with members:', groupWithMembers.members?.length || 0);
+      console.log('  Group with members:', groupWithMembers.members?.length || 0);
       
     } catch (error) {
       console.log('⚠️ Member operations:', error.message);
@@ -133,7 +133,7 @@ export async function testGroupsIntegration() {
     for (const filter of filters) {
       try {
         const result = await apiClient.getGroups(filter);
-        console.log(`✅ Filter ${JSON.stringify(filter)}: ${result.groups?.length || 0} groups`);
+        console.log(`  Filter ${JSON.stringify(filter)}: ${result.groups?.length || 0} groups`);
       } catch (error) {
         console.log(`❌ Filter ${JSON.stringify(filter)}: ${error.message}`);
       }
@@ -146,7 +146,7 @@ export async function testGroupsIntegration() {
         visibility: 'public',
         description: 'Updated to public group'
       });
-      console.log('✅ Group visibility updated to public');
+      console.log('  Group visibility updated to public');
     } catch (error) {
       console.log('❌ Update group:', error.message);
     }
@@ -156,14 +156,14 @@ export async function testGroupsIntegration() {
     try {
       await apiClient.deleteGroup(privateGroup.id);
       await apiClient.deleteGroup(publicGroup.id);
-      console.log('✅ Test groups deleted');
+      console.log('  Test groups deleted');
     } catch (error) {
       console.log('⚠️ Cleanup error:', error.message);
     }
     
     // Sign out
     await signOut();
-    console.log('✅ User signed out');
+    console.log('  User signed out');
     
     console.log('\n🎉 Groups Integration Test Completed Successfully!');
     return {
@@ -223,7 +223,7 @@ async function testUserScopedGroups() {
         count: result.groups?.length || 0,
         groups: result.groups
       };
-      console.log(`✅ ${endpoint.name}: ${results[endpoint.name].count} groups`);
+      console.log(`  ${endpoint.name}: ${results[endpoint.name].count} groups`);
     } catch (error) {
       results[endpoint.name] = {
         success: false,
@@ -257,7 +257,7 @@ async function testGroupVisibility() {
         visibility: group.visibility
       };
       
-      console.log(`✅ ${visibility} group created:`, group.id);
+      console.log(`  ${visibility} group created:`, group.id);
       
       // Clean up
       await apiClient.deleteGroup(group.id);
@@ -329,7 +329,7 @@ export async function createTestGroups(session, count = 5) {
       });
       
       testGroups.push(group);
-      console.log(`✅ Created test group ${i + 1}:`, group.name);
+      console.log(`  Created test group ${i + 1}:`, group.name);
     } catch (error) {
       console.log(`❌ Failed to create test group ${i + 1}:`, error.message);
     }
@@ -349,7 +349,7 @@ export async function cleanupTestGroups(session, groupIds) {
   for (const groupId of groupIds) {
     try {
       await apiClient.deleteGroup(groupId);
-      console.log(`✅ Deleted test group:`, groupId);
+      console.log(`  Deleted test group:`, groupId);
     } catch (error) {
       console.log(`❌ Failed to delete test group ${groupId}:`, error.message);
     }

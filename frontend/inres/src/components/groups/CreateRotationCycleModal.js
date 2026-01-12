@@ -516,7 +516,7 @@ function CreateRotationCycleModal({ isOpen, onClose, groupId, groupMembers, onRo
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-start space-x-3">
-                    <span className="text-blue-600 text-lg mt-0.5">✅</span>
+                    <span className="text-blue-600 text-lg mt-0.5"> </span>
                     <div>
                       <p className="text-blue-900 font-medium">Automatic Schedule Generation</p>
                       <p className="text-blue-700 text-sm">

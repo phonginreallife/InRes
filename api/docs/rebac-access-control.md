@@ -108,9 +108,9 @@ Only you can see it!
 **Situation**: Sarah joins Acme Corp as a Member
 
 **What Sarah can see:**
-- ✅ All **Open** projects
-- ✅ Incidents not linked to any project
-- ✅ Any incident assigned directly to her
+-   All **Open** projects
+-   Incidents not linked to any project
+-   Any incident assigned directly to her
 - ❌ **Closed** projects (unless someone adds her)
 
 ### Example 2: Admin Can't See a Project
@@ -203,14 +203,14 @@ You have two options:
                         Can See Open    Can See Closed    Can Manage
 Role                    Projects?       Projects?         Members?
 ─────────────────────────────────────────────────────────────────────
-Org Owner               ✅ Yes          ❌ No*            ✅ Yes
-Org Admin               ✅ Yes          ❌ No*            ✅ Yes  
-Org Member              ✅ Yes          ❌ No*            ❌ No
-Org Viewer              ✅ Yes          ❌ No*            ❌ No
+Org Owner                 Yes          ❌ No*              Yes
+Org Admin                 Yes          ❌ No*              Yes  
+Org Member                Yes          ❌ No*            ❌ No
+Org Viewer                Yes          ❌ No*            ❌ No
 
-Project Admin           N/A             ✅ Yes            ✅ Yes
-Project Member          N/A             ✅ Yes            ❌ No
-Project Viewer          N/A             ✅ Yes            ❌ No
+Project Admin           N/A               Yes              Yes
+Project Member          N/A               Yes            ❌ No
+Project Viewer          N/A               Yes            ❌ No
 
 * Unless explicitly added as a project member
 ```

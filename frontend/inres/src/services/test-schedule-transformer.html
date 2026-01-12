@@ -230,7 +230,7 @@
             try {
                 const yearlyShifts = transformScheduleDataWithRotation(mockScheduleData);
                 resultDiv.className = 'result success';
-                resultDiv.textContent = `✅ Generated ${yearlyShifts.length} shifts for the year\n\nFirst 3 shifts:\n` +
+                resultDiv.textContent = `  Generated ${yearlyShifts.length} shifts for the year\n\nFirst 3 shifts:\n` +
                     yearlyShifts.slice(0, 3).map((shift, index) => {
                         const member = mockMembers.find(m => m.user_id === shift.user_id);
                         return `${index + 1}. ${member.user_name}: ${shift.start_time} → ${shift.end_time}`;
@@ -246,7 +246,7 @@
             try {
                 const quarterlyShifts = transformScheduleDataWithRotation(mockScheduleData, { weeksAhead: 12 });
                 resultDiv.className = 'result success';
-                resultDiv.textContent = `✅ Generated ${quarterlyShifts.length} shifts for 12 weeks\n\nAll shifts:\n` +
+                resultDiv.textContent = `  Generated ${quarterlyShifts.length} shifts for 12 weeks\n\nAll shifts:\n` +
                     quarterlyShifts.map((shift, index) => {
                         const member = mockMembers.find(m => m.user_id === shift.user_id);
                         const startDate = new Date(shift.start_time).toLocaleDateString();
@@ -264,7 +264,7 @@
             try {
                 const singleShifts = transformScheduleDataWithRotation(mockScheduleData, { generateYearlyShifts: false });
                 resultDiv.className = 'result success';
-                resultDiv.textContent = `✅ Generated ${singleShifts.length} shifts (one per member)\n\nShifts:\n` +
+                resultDiv.textContent = `  Generated ${singleShifts.length} shifts (one per member)\n\nShifts:\n` +
                     singleShifts.map((shift, index) => {
                         const member = mockMembers.find(m => m.user_id === shift.user_id);
                         return `${index + 1}. ${member.user_name}: ${shift.start_time} → ${shift.end_time}`;
@@ -282,7 +282,7 @@
                 const dailyScheduleData = { ...mockScheduleData, rotations: [dailyRotation] };
                 const dailyShifts = transformScheduleDataWithRotation(dailyScheduleData, { weeksAhead: 1 });
                 resultDiv.className = 'result success';
-                resultDiv.textContent = `✅ Generated ${dailyShifts.length} daily shifts for 1 week\n\nShifts:\n` +
+                resultDiv.textContent = `  Generated ${dailyShifts.length} daily shifts for 1 week\n\nShifts:\n` +
                     dailyShifts.map((shift, index) => {
                         const member = mockMembers.find(m => m.user_id === shift.user_id);
                         const startDate = new Date(shift.start_time).toLocaleDateString();
@@ -302,7 +302,7 @@
                     generateYearlyShifts: true
                 });
                 resultDiv.className = 'result success';
-                resultDiv.textContent = `✅ Generated ${customShifts.length} shifts for 4 weeks\n\nRotation pattern:\n` +
+                resultDiv.textContent = `  Generated ${customShifts.length} shifts for 4 weeks\n\nRotation pattern:\n` +
                     customShifts.map((shift, index) => {
                         const member = mockMembers.find(m => m.user_id === shift.user_id);
                         const startDate = new Date(shift.start_time).toLocaleDateString();

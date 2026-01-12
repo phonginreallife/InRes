@@ -107,7 +107,7 @@ const generateRotationShifts = (rotation, members, weeksAhead = 52) => {
     }
   }
 
-  console.log(`✅ Generated ${backendSchedules.length} shifts total`);
+  console.log(`  Generated ${backendSchedules.length} shifts total`);
   return backendSchedules;
 };
 
@@ -155,7 +155,7 @@ try {
     if (gapHours > 0) {
       console.log(`⚠️  GAP DETECTED: ${gapHours} hours with no coverage!`);
     } else if (gapHours === 0) {
-      console.log(`✅ Perfect handoff - no gap`);
+      console.log(`  Perfect handoff - no gap`);
     } else {
       console.log(`⚠️  OVERLAP DETECTED: ${Math.abs(gapHours)} hours overlap`);
     }

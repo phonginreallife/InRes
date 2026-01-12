@@ -331,7 +331,7 @@ func (s *SchedulerService) CreateScheduler(groupID string, req db.CreateSchedule
 
 	// Log the name generation for debugging
 	if uniqueName != req.Name {
-		log.Printf("🔄 Generated unique name: '%s' -> '%s' for group %s", req.Name, uniqueName, groupID)
+		log.Printf("Generated unique name: '%s' -> '%s' for group %s", req.Name, uniqueName, groupID)
 	}
 
 	// Handle organization_id - convert empty string to nil for SQL
@@ -397,7 +397,7 @@ func (s *SchedulerService) CreateSchedulerWithShifts(groupID string, schedulerRe
 
 	// Log the name generation for debugging
 	if uniqueName != schedulerReq.Name {
-		log.Printf("🔄 Generated unique name: '%s' -> '%s' for group %s", schedulerReq.Name, uniqueName, groupID)
+		log.Printf("Generated unique name: '%s' -> '%s' for group %s", schedulerReq.Name, uniqueName, groupID)
 	}
 
 	// Handle organization_id - convert empty string to nil for SQL
@@ -932,7 +932,7 @@ func (s *SchedulerService) GetAllShiftsInGroup(groupID string) ([]db.Shift, erro
 		shifts = append(shifts, shift)
 	}
 
-	log.Printf("🔍 GetAllShiftsInGroup: Found %d shifts for group %s (%d with overrides)",
+	log.Printf("GetAllShiftsInGroup: Found %d shifts for group %s (%d with overrides)",
 		len(shifts), groupID, countOverriddenShifts(shifts))
 	return shifts, nil
 }
@@ -1093,7 +1093,7 @@ func (s *SchedulerService) UpdateSchedulerWithShifts(schedulerID string, schedul
 		return scheduler, nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Printf("✅ Updated scheduler %s with %d new shifts", schedulerID, len(createdShifts))
+	log.Printf("  Updated scheduler %s with %d new shifts", schedulerID, len(createdShifts))
 	scheduler.Shifts = createdShifts
 	return scheduler, createdShifts, nil
 }

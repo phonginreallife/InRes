@@ -340,29 +340,29 @@ class ZeroTrustVerifier:
 
         Returns: (is_valid, error_message)
         """
-        logger.info(f"📜 Verifying certificate: {cert.id}")
-        logger.info(f"📜 Instance ID: {cert.instance_id}")
-        logger.info(f"📜 User ID: {cert.user_id}")
-        logger.info(f"📜 Expires at: {cert.expires_at}, current: {time.time()}")
+        logger.info(f"Verifying certificate: {cert.id}")
+        logger.info(f"Instance ID: {cert.instance_id}")
+        logger.info(f"User ID: {cert.user_id}")
+        logger.info(f"Expires at: {cert.expires_at}, current: {time.time()}")
 
         # 1. Check expiration
         if cert.is_expired():
-            logger.warning(f"📜 Certificate expired!")
+            logger.warning(f"Certificate expired!")
             return False, "Certificate expired"
 
         # 2. Get instance public key
         instance = self._instance_cache.get(cert.instance_id)
-        logger.info(f"📜 Instance in cache: {instance is not None}")
+        logger.info(f"Instance in cache: {instance is not None}")
 
         if not instance:
             # Try to fetch from backend
-            logger.info(f"📜 Fetching instance public key from backend...")
+            logger.info(f"Fetching instance public key from backend...")
             public_key_pem = await self.fetch_instance_public_key(cert.instance_id)
             if public_key_pem:
                 self.register_instance(cert.instance_id, public_key_pem)
                 instance = self._instance_cache.get(cert.instance_id)
             else:
-                logger.warning(f"📜 Could not fetch instance public key!")
+                logger.warning(f"Could not fetch instance public key!")
 
             if not instance:
                 return False, f"Unknown instance: {cert.instance_id}"
@@ -378,14 +378,14 @@ class ZeroTrustVerifier:
             "expires_at": cert.expires_at,
         }
         canonical_json = self._canonical_json(cert_payload)
-        logger.info(f"📜 Canonical JSON for verification: {canonical_json[:100]}...")
+        logger.info(f"Canonical JSON for verification: {canonical_json[:100]}...")
 
         # 4. Verify ECDSA signature
         # Go produces Raw format (R || S), but cryptography library expects DER format
         try:
-            logger.info(f"📜 Signature hex: {cert.instance_signature[:40]}...")
+            logger.info(f"Signature hex: {cert.instance_signature[:40]}...")
             signature_bytes = bytes.fromhex(cert.instance_signature)
-            logger.info(f"📜 Signature bytes length: {len(signature_bytes)}")
+            logger.info(f"Signature bytes length: {len(signature_bytes)}")
 
             # Convert Raw (R || S) format to DER format
             # P-256 curve has 32-byte R and S values (64 bytes total in raw format)
@@ -394,23 +394,23 @@ class ZeroTrustVerifier:
                 s = int.from_bytes(signature_bytes[32:], byteorder='big')
                 # Encode to DER format that cryptography library expects
                 der_signature = encode_dss_signature(r, s)
-                logger.info(f"📜 Converted Raw to DER format (64 -> {len(der_signature)} bytes)")
+                logger.info(f"Converted Raw to DER format (64 -> {len(der_signature)} bytes)")
             else:
                 # Assume it's already in DER format
                 der_signature = signature_bytes
-                logger.info(f"📜 Using signature as-is (already DER format?)")
+                logger.info(f"Using signature as-is (already DER format?)")
 
             instance.public_key.verify(
                 der_signature,
                 canonical_json.encode(),
                 ec.ECDSA(hashes.SHA256())
             )
-            logger.info(f"📜 ✅ Signature verified successfully!")
+            logger.info(f"Signature verified successfully!")
         except InvalidSignature:
-            logger.warning(f"📜 ❌ Invalid certificate signature!")
+            logger.warning(f"Invalid certificate signature!")
             return False, "Invalid certificate signature"
         except Exception as e:
-            logger.error(f"📜 ❌ Signature verification error: {e}", exc_info=True)
+            logger.error(f"Signature verification error: {e}", exc_info=True)
             return False, f"Signature verification error: {e}"
 
         return True, "OK"
@@ -425,26 +425,26 @@ class ZeroTrustVerifier:
 
         Returns: (session, error_message)
         """
-        logger.info(f"🔐 Starting authentication...")
-        logger.info(f"🔐 Certificate dict keys: {list(cert_dict.keys())}")
+        logger.info(f"Starting authentication...")
+        logger.info(f"Certificate dict keys: {list(cert_dict.keys())}")
 
         cert = DeviceCertificate.from_dict(cert_dict)
-        logger.info(f"🔐 Parsed certificate: id={cert.id}, user={cert.user_id}")
+        logger.info(f"Parsed certificate: id={cert.id}, user={cert.user_id}")
 
         # Verify certificate
         is_valid, error = await self.verify_certificate(cert)
         if not is_valid:
-            logger.warning(f"🔐 ❌ Certificate verification failed: {error}")
+            logger.warning(f"Certificate verification failed: {error}")
             return None, error
 
-        logger.info(f"🔐 ✅ Certificate verified!")
+        logger.info(f"Certificate verified!")
 
         # Decode device public key
         try:
             device_key_bytes = base64.b64decode(cert.device_public_key)
-            logger.info(f"🔐 Device public key bytes length: {len(device_key_bytes)}")
+            logger.info(f"Device public key bytes length: {len(device_key_bytes)}")
         except Exception as e:
-            logger.error(f"🔐 ❌ Invalid device public key encoding: {e}")
+            logger.error(f"Invalid device public key encoding: {e}")
             return None, f"Invalid device public key encoding: {e}"
 
         # Handle session ID
@@ -455,7 +455,7 @@ class ZeroTrustVerifier:
             try:
                 uuid.UUID(session_id)
             except ValueError:
-                logger.warning(f"🔐 Invalid session_id format, generating new UUID")
+                logger.warning(f"Invalid session_id format, generating new UUID")
                 session_id = str(uuid.uuid4())
 
         # Check if session already exists (reconnection case)
@@ -469,7 +469,7 @@ class ZeroTrustVerifier:
 
         if existing_session and existing_session.cert_id == cert.id:
             # Reconnection with same certificate - reuse session
-            logger.info(f"🔐 ✅ Reconnected to existing session {session_id}")
+            logger.info(f"Reconnected to existing session {session_id}")
             return existing_session, "OK"
 
         # Create new session
@@ -488,7 +488,7 @@ class ZeroTrustVerifier:
         # Persist to database for durability across restarts
         self._save_session_to_db(session)
 
-        logger.info(f"🔐 ✅ Authenticated session {session_id} for user {cert.user_id}")
+        logger.info(f"Authenticated session {session_id} for user {cert.user_id}")
         return session, "OK"
 
     def verify_message(
@@ -541,8 +541,8 @@ class ZeroTrustVerifier:
         # 6. Verify Ed25519 signature
         try:
             canonical_json = self._canonical_json(payload)
-            logger.info(f"📜 Canonical JSON for verification: {canonical_json[:200]}...")
-            logger.info(f"📜 Signature hex: {signature_hex[:64]}...")
+            logger.info(f"Canonical JSON for verification: {canonical_json[:200]}...")
+            logger.info(f"Signature hex: {signature_hex[:64]}...")
             signature_bytes = bytes.fromhex(signature_hex)
 
             # Create Ed25519 public key from bytes

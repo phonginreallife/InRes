@@ -64,7 +64,7 @@ type EscalationPolicyWithSteps struct {
 // CreateEscalationPolicy creates a new Datadog-style escalation policy with levels
 func (s *EscalationService) CreateEscalationPolicy(groupID string, req db.EscalationPolicy) (db.EscalationPolicy, error) {
 	policy := db.EscalationPolicy{
-		ID:                   uuid.New().String(), // ✅ Generate UUID
+		ID:                   uuid.New().String(), //   Generate UUID
 		Name:                 req.Name,
 		Description:          req.Description,
 		IsActive:             true,
@@ -119,7 +119,7 @@ func (s *EscalationService) CreateEscalationPolicy(groupID string, req db.Escala
 		}
 
 		level := db.EscalationLevel{
-			ID:                  uuid.New().String(), // ✅ Generate UUID
+			ID:                  uuid.New().String(), //   Generate UUID
 			PolicyID:            policy.ID,
 			LevelNumber:         levelReq.LevelNumber,
 			TargetType:          levelReq.TargetType,

@@ -70,7 +70,7 @@ export default function MarketplaceTab() {
             name: m.name,
             fetchedAt: m.updated_at
           }));
-          console.log('[MarketplaceTab] ✅ Loaded marketplaces from database:', userMarketplaces.length);
+          console.log('[MarketplaceTab]   Loaded marketplaces from database:', userMarketplaces.length);
         }
       }
 
@@ -114,7 +114,7 @@ export default function MarketplaceTab() {
           console.log(`[MarketplaceTab] 📦 PostgreSQL result for "${marketplace.name}":`, dbResult);
 
           if (dbResult.success && dbResult.marketplace) {
-            console.log(`[MarketplaceTab] ✅ Successfully loaded ${marketplace.name} from PostgreSQL (instant!)`);
+            console.log(`[MarketplaceTab]   Successfully loaded ${marketplace.name} from PostgreSQL (instant!)`);
             console.log(`[MarketplaceTab]    Display name: ${dbResult.marketplace.display_name}`);
             console.log(`[MarketplaceTab]    Plugins count: ${dbResult.marketplace.plugins?.length || 0}`);
             cached.add(marketplace.url);
@@ -235,7 +235,7 @@ export default function MarketplaceTab() {
         throw new Error(downloadResult.error || 'Failed to download marketplace');
       }
 
-      console.log('[MarketplaceTab] ✅ Marketplace downloaded:', downloadResult.marketplace);
+      console.log('[MarketplaceTab]   Marketplace downloaded:', downloadResult.marketplace);
 
       const marketplaceName = downloadResult.marketplaceName || downloadResult.marketplace?.name || inferredMarketplaceName;
 
@@ -329,7 +329,7 @@ export default function MarketplaceTab() {
         throw new Error(result.error || 'Failed to delete marketplace');
       }
 
-      console.log(`[MarketplaceTab] ✅ Marketplace deletion initiated (job_id: ${result.job_id})`);
+      console.log(`[MarketplaceTab]   Marketplace deletion initiated (job_id: ${result.job_id})`);
 
       // Update UI immediately (optimistic update - already deleted from DB by backend)
       const updatedMarketplaces = marketplaces.filter(m => m.url !== marketplaceUrl);
@@ -453,7 +453,7 @@ export default function MarketplaceTab() {
         throw new Error(installResult.error || 'Failed to install plugin');
       }
 
-      console.log('[MarketplaceTab] ✅ Plugin installed (instant!):', installResult.plugin);
+      console.log('[MarketplaceTab]   Plugin installed (instant!):', installResult.plugin);
 
       // Update UI
       setInstalledPluginIds(new Set([...installedPluginIds, pluginKey]));

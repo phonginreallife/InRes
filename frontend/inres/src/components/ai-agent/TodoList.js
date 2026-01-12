@@ -2,7 +2,7 @@
  * TodoList Component - Compact task progress display
  * 
  * Shows todos from Claude Agent SDK with status indicators:
- * ❌ pending | 🔧 in_progress | ✅ completed
+ * ❌ pending | 🔧 in_progress |   completed
  */
 
 import { useState } from 'react';

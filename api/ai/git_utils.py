@@ -38,7 +38,7 @@ async def run_git_command(
         Tuple of (success, stdout, stderr)
     """
     cmd = ["git"] + args
-    logger.info(f"🔧 Running: {' '.join(cmd)} (cwd: {cwd})")
+    logger.info(f"Running: {' '.join(cmd)} (cwd: {cwd})")
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -60,20 +60,20 @@ async def run_git_command(
         success = process.returncode == 0
 
         if success:
-            logger.info(f"✅ Git command succeeded")
+            logger.info(f"  Git command succeeded")
             if stdout_str:
                 logger.debug(f"   stdout: {stdout_str[:200]}")
         else:
-            logger.error(f"❌ Git command failed (code {process.returncode})")
+            logger.error(f"Git command failed (code {process.returncode})")
             logger.error(f"   stderr: {stderr_str}")
 
         return success, stdout_str, stderr_str
 
     except asyncio.TimeoutError:
-        logger.error(f"❌ Git command timed out after {timeout}s")
+        logger.error(f"Git command timed out after {timeout}s")
         return False, "", f"Command timed out after {timeout} seconds"
     except Exception as e:
-        logger.error(f"❌ Git command error: {e}")
+        logger.error(f"Git command error: {e}")
         return False, "", str(e)
 
 
@@ -100,7 +100,7 @@ async def clone_repository(
 
     # Remove existing directory if it exists
     if target_dir.exists():
-        logger.warning(f"⚠️ Removing existing directory: {target_dir}")
+        logger.warning(f"Removing existing directory: {target_dir}")
         shutil.rmtree(target_dir)
 
     # Clone with shallow depth
@@ -121,7 +121,7 @@ async def clone_repository(
     # Get current commit SHA
     commit_sha = await get_current_commit(target_dir)
 
-    logger.info(f"✅ Cloned {repo_url} @ {branch} -> {target_dir} (commit: {commit_sha[:8] if commit_sha else 'unknown'})")
+    logger.info(f"  Cloned {repo_url} @ {branch} -> {target_dir} (commit: {commit_sha[:8] if commit_sha else 'unknown'})")
 
     return True, commit_sha or "unknown"
 
@@ -174,7 +174,7 @@ async def fetch_and_reset(
     if had_changes:
         logger.info(f"📦 Updated: {old_commit[:8] if old_commit else '?'} -> {new_commit[:8] if new_commit else '?'}")
     else:
-        logger.info(f"✅ Already up to date: {new_commit[:8] if new_commit else '?'}")
+        logger.info(f"  Already up to date: {new_commit[:8] if new_commit else '?'}")
 
     return True, new_commit or "unknown", had_changes
 
@@ -285,15 +285,15 @@ async def remove_repository(repo_dir: Path) -> bool:
         True if removed successfully
     """
     if not repo_dir.exists():
-        logger.warning(f"⚠️ Repository does not exist: {repo_dir}")
+        logger.warning(f"Repository does not exist: {repo_dir}")
         return True
 
     try:
         shutil.rmtree(repo_dir)
-        logger.info(f"🗑️ Removed repository: {repo_dir}")
+        logger.info(f"Removed repository: {repo_dir}")
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to remove repository: {e}")
+        logger.error(f"Failed to remove repository: {e}")
         return False
 
 

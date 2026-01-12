@@ -146,7 +146,7 @@ components:
   ai:
     replicas: 1
     image:
-      name: inres-ai
+      name: inres-agent
     service:
       enabled: true
       type: ClusterIP

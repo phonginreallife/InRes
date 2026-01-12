@@ -99,7 +99,7 @@ class SlackWorker:
                 logger.warning(f"⚠️  Config file {config_path} is empty")
                 return {}
 
-            logger.info(f"✅ Loaded config from {config_path}")
+            logger.info(f"  Loaded config from {config_path}")
             return config
 
         except Exception as e:
@@ -117,7 +117,7 @@ class SlackWorker:
             
             # Test connection
             auth_response = self.slack_client.auth_test()
-            logger.info(f"✅ Slack connected as: {auth_response['user']} in team: {auth_response['team']}")
+            logger.info(f"  Slack connected as: {auth_response['user']} in team: {auth_response['team']}")
         except Exception as e:
             logger.error(f"❌ Failed to setup Slack: {e}")
             raise
@@ -170,7 +170,7 @@ class SlackWorker:
             logger.info(f"🔍 User clicked view incident button")
             # This is just a URL button, no additional action needed
         
-        logger.info("✅ Slack event handlers setup complete")
+        logger.info("  Slack event handlers setup complete")
     
     def run(self):
         """Main worker loop with Slack event handling"""
@@ -189,7 +189,7 @@ class SlackWorker:
                 # Start socket mode in separate thread
                 socket_thread = threading.Thread(target=socket_handler.start, daemon=True)
                 socket_thread.start()
-                logger.info("✅ Slack Socket Mode started for button interactions")
+                logger.info("  Slack Socket Mode started for button interactions")
             else:
                 logger.warning("⚠️  SLACK_APP_TOKEN not configured - interactive buttons will not work")
             
@@ -381,7 +381,7 @@ class SlackWorker:
             
             if action == "acknowledgment_success":
                 user_name = feedback_msg.get('user_name', 'Unknown')
-                logger.info(f"✅ Processing acknowledgment success feedback for incident {incident_id}")
+                logger.info(f"  Processing acknowledgment success feedback for incident {incident_id}")
                 
                 # Update ALL messages to final acknowledged state
                 self.update_all_messages_for_incident(incident_id, user_name, "acknowledged")

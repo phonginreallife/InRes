@@ -79,7 +79,7 @@ def ensure_user_bucket_exists(user_id: str) -> bool:
         bucket_names = [b.name for b in buckets]
 
         if user_id in bucket_names:
-            logger.debug(f"✅ Bucket already exists: {user_id}")
+            logger.debug(f"  Bucket already exists: {user_id}")
             return True
 
         # Create bucket for user
@@ -91,7 +91,7 @@ def ensure_user_bucket_exists(user_id: str) -> bool:
                 "file_size_limit": 52428800,  # 50MB
             }
         )
-        logger.info(f"✅ Created storage bucket: {user_id}")
+        logger.info(f"  Created storage bucket: {user_id}")
         return True
 
     except Exception as e:
@@ -99,7 +99,7 @@ def ensure_user_bucket_exists(user_id: str) -> bool:
         if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
             logger.debug(f"Bucket already exists: {user_id}")
             return True
-        logger.error(f"❌ Failed to ensure bucket exists for {user_id}: {e}")
+        logger.error(f"Failed to ensure bucket exists for {user_id}: {e}")
         return False
 
 
@@ -154,11 +154,11 @@ def save_config_to_file(user_id: str, config: Dict[str, Any]) -> bool:
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=2)
 
-        logger.info(f"💾 Saved config to file: {config_file}")
+        logger.info(f"Saved config to file: {config_file}")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to save config to file for user {user_id}: {e}")
+        logger.error(f"Failed to save config to file for user {user_id}: {e}")
         return False
 
 
@@ -180,17 +180,17 @@ def load_config_from_file(user_id: str) -> Optional[Dict[str, Any]]:
         config_file = workspace_path / MCP_FILE_NAME
 
         if not config_file.exists():
-            logger.debug(f"📄 Config file does not exist: {config_file}")
+            logger.debug(f"Config file does not exist: {config_file}")
             return None
 
         with open(config_file, 'r') as f:
             config = json.load(f)
 
-        logger.info(f"📂 Loaded config from file: {config_file}")
+        logger.info(f"Loaded config from file: {config_file}")
         return config
 
     except Exception as e:
-        logger.error(f"❌ Failed to load config from file for user {user_id}: {e}")
+        logger.error(f"Failed to load config from file for user {user_id}: {e}")
         return None
 
 
@@ -212,7 +212,7 @@ def extract_user_id_from_token(auth_token: str) -> Optional[str]:
         None - Returns None on any error to prevent information disclosure
     """
     if not auth_token:
-        logger.warning("⚠️ No auth token provided")
+        logger.warning("No auth token provided")
         return None
 
     try:
@@ -243,30 +243,30 @@ def extract_user_id_from_token(auth_token: str) -> Optional[str]:
                 }
             )
         else:
-            logger.warning(f"⚠️ Cannot verify token: alg={alg}, has_secret={bool(config.supabase_jwt_secret)}, has_url={bool(config.supabase_url)}")
+            logger.warning(f"Cannot verify token: alg={alg}, has_secret={bool(config.supabase_jwt_secret)}, has_url={bool(config.supabase_url)}")
             return None
 
         # Extract user ID from 'sub' claim
         user_id = decoded.get("sub")
 
         if user_id:
-            logger.debug(f"✅ Verified token for user_id: {user_id}")
+            logger.debug(f"  Verified token for user_id: {user_id}")
             return user_id
         else:
-            logger.warning("⚠️ Token does not contain 'sub' claim")
+            logger.warning("Token does not contain 'sub' claim")
             return None
 
     except jwt.ExpiredSignatureError:
-        logger.warning("⚠️ Token has expired")
+        logger.warning("Token has expired")
         return None
     except jwt.InvalidSignatureError:
         logger.warning("🚨 Invalid token signature - possible forgery attempt!")
         return None
     except jwt.DecodeError as e:
-        logger.warning(f"⚠️ Failed to decode JWT token: {type(e).__name__}")
+        logger.warning(f"Failed to decode JWT token: {type(e).__name__}")
         return None
     except Exception as e:
-        logger.error(f"❌ Unexpected error verifying token: {type(e).__name__}: {e}")
+        logger.error(f"Unexpected error verifying token: {type(e).__name__}: {e}")
         return None
 
 
@@ -385,7 +385,7 @@ def parse_mcp_servers(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         logger.warning("Config does not contain 'mcpServers' field")
         return {}
 
-    logger.info(f"📋 Found {len(mcp_servers)} MCP servers in config")
+    logger.info(f"Found {len(mcp_servers)} MCP servers in config")
 
     # TODO: Convert to MCPServer objects if needed
     # For now, return the raw dictionary
@@ -446,7 +446,7 @@ async def get_user_mcp_servers(auth_token: str = "", user_id: str = "") -> Dict[
         effective_user_id = extract_user_id_from_token(auth_token)
 
     if not effective_user_id:
-        logger.warning("⚠️ No user_id provided and could not extract from auth_token")
+        logger.warning("No user_id provided and could not extract from auth_token")
         return {}
 
     try:
@@ -455,7 +455,7 @@ async def get_user_mcp_servers(auth_token: str = "", user_id: str = "") -> Dict[
         results = execute_query(query, (effective_user_id,), fetch="all")
 
         if not results:
-            logger.debug(f"ℹ️  No MCP servers found for user {effective_user_id}")
+            logger.debug(f"No MCP servers found for user {effective_user_id}")
             return {}
 
         # Convert to MCP server format based on server_type
@@ -483,15 +483,15 @@ async def get_user_mcp_servers(auth_token: str = "", user_id: str = "") -> Dict[
                     "headers": server.get("headers", {})
                 }
             else:
-                logger.warning(f"⚠️  Unknown server_type '{server_type}' for server '{server_name}', skipping")
+                logger.warning(f"Unknown server_type '{server_type}' for server '{server_name}', skipping")
                 continue
 
-        logger.info(f"✅ Loaded {len(mcp_servers)} MCP servers from PostgreSQL for user {effective_user_id}")
+        logger.info(f"  Loaded {len(mcp_servers)} MCP servers from PostgreSQL for user {effective_user_id}")
         logger.debug(f"   Servers: {list(mcp_servers.keys())}")
         return mcp_servers
 
     except Exception as e:
-        logger.error(f"❌ Failed to load MCP servers from PostgreSQL for user {effective_user_id}: {e}")
+        logger.error(f"Failed to load MCP servers from PostgreSQL for user {effective_user_id}: {e}")
         return {}
 
 
@@ -550,7 +550,7 @@ async def sync_mcp_config_to_local(user_id: str) -> Dict[str, Any]:
         # Save to local .mcp.json file
         save_config_to_file(user_id, config)
         
-        logger.info(f"✅ Synced {len(mcp_servers)} MCP servers to local .mcp.json for user {user_id}")
+        logger.info(f"  Synced {len(mcp_servers)} MCP servers to local .mcp.json for user {user_id}")
         
         return {
             "success": True,
@@ -559,7 +559,7 @@ async def sync_mcp_config_to_local(user_id: str) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"❌ Failed to sync MCP config to local for user {user_id}: {e}")
+        logger.error(f"Failed to sync MCP config to local for user {user_id}: {e}")
         return {
             "success": False,
             "message": f"Sync failed: {str(e)}",
@@ -607,7 +607,7 @@ def load_user_plugins(user_id: str) -> List[Dict[str, str]]:
     """
     from claude_agent_sdk import SdkPluginConfig
     if not user_id:
-        logger.debug(f"ℹ️  No user_id provided")
+        logger.debug(f"No user_id provided")
         return []
 
     try:
@@ -616,7 +616,7 @@ def load_user_plugins(user_id: str) -> List[Dict[str, str]]:
         results = execute_query(query, (user_id,), fetch="all")
 
         if not results:
-            logger.debug(f"ℹ️  No installed plugins found for user {user_id}")
+            logger.debug(f"No installed plugins found for user {user_id}")
             return []
 
         workspace_path = get_user_workspace_path(user_id)
@@ -627,7 +627,7 @@ def load_user_plugins(user_id: str) -> List[Dict[str, str]]:
             install_path = plugin.get("install_path")
 
             if not plugin_name or not install_path:
-                logger.warning(f"⚠️  Plugin missing name or install_path, skipping: {plugin}")
+                logger.warning(f"Plugin missing name or install_path, skipping: {plugin}")
                 continue
 
             # Build absolute path from install_path
@@ -639,12 +639,12 @@ def load_user_plugins(user_id: str) -> List[Dict[str, str]]:
                     logger.warning(f"🚨 Potential path traversal detected in plugin path: {install_path}")
                     continue
             except Exception as e:
-                logger.warning(f"⚠️ Error resolving plugin path {install_path}: {e}")
+                logger.warning(f"Error resolving plugin path {install_path}: {e}")
                 continue
 
             # Check if plugin directory exists
             if not plugin_absolute_path.exists():
-                logger.warning(f"⚠️  Plugin directory not found: {plugin_absolute_path}")
+                logger.warning(f"Plugin directory not found: {plugin_absolute_path}")
                 logger.debug(f"   Plugin: {plugin_name}, install_path: {install_path}")
                 continue
 
@@ -656,13 +656,13 @@ def load_user_plugins(user_id: str) -> List[Dict[str, str]]:
             )
             plugin_configs.append(plugin_config)
 
-            logger.debug(f"✅ Loaded plugin: {plugin_name} from {install_path} (path: {install_path})")
+            logger.debug(f"  Loaded plugin: {plugin_name} from {install_path} (path: {install_path})")
 
         logger.info(f"📦 Loaded {len(plugin_configs)} plugins for user {user_id}")
         return plugin_configs
 
     except Exception as e:
-        logger.error(f"❌ Failed to load plugins for user {user_id}: {e}")
+        logger.error(f"Failed to load plugins for user {user_id}: {e}")
         return []
 
 
@@ -714,7 +714,7 @@ async def list_skill_files(user_id: str) -> List[Dict[str, Any]]:
         return []
 
     try:
-        logger.info(f"📋 Listing skill files from .claude/skills/ for user: {user_id}")
+        logger.info(f"Listing skill files from .claude/skills/ for user: {user_id}")
 
         # Create Supabase client
         supabase = get_supabase_client()
@@ -727,7 +727,7 @@ async def list_skill_files(user_id: str) -> List[Dict[str, Any]]:
         })
 
         if not response:
-            logger.info(f"⚠️  No .claude/skills/ directory found for user: {user_id}")
+            logger.info(f"No .claude/skills/ directory found for user: {user_id}")
             return []
 
         # Filter only .skill and .zip files
@@ -736,11 +736,11 @@ async def list_skill_files(user_id: str) -> List[Dict[str, Any]]:
             if file.get("name", "").endswith((".skill", ".zip", ".md"))
         ]
 
-        logger.info(f"✅ Found {len(skill_files)} skill files in .claude/skills/ for user: {user_id}")
+        logger.info(f"  Found {len(skill_files)} skill files in .claude/skills/ for user: {user_id}")
         return skill_files
 
     except Exception as e:
-        logger.error(f"❌ Failed to list skill files for user {user_id}: {e}")
+        logger.error(f"Failed to list skill files for user {user_id}: {e}")
         return []
 
 
@@ -770,14 +770,14 @@ async def download_skill_file(user_id: str, skill_filename: str) -> Optional[byt
         response = supabase.storage.from_(user_id).download(skill_path)
 
         if not response:
-            logger.warning(f"⚠️  Skill file not found: {skill_path}")
+            logger.warning(f"Skill file not found: {skill_path}")
             return None
 
-        logger.info(f"✅ Successfully downloaded skill file: {skill_filename}")
+        logger.info(f"  Successfully downloaded skill file: {skill_filename}")
         return response
 
     except Exception as e:
-        logger.error(f"❌ Failed to download skill file {skill_filename} for user {user_id}: {e}")
+        logger.error(f"Failed to download skill file {skill_filename} for user {user_id}: {e}")
         return None
 
 
@@ -804,7 +804,7 @@ def ensure_claude_skills_dir(workspace_path: Path) -> Path:
                 else:
                     item.unlink()
     except Exception as e:
-        logger.debug(f"⚠️ Error during temp cleanup: {e}")
+        logger.debug(f"Error during temp cleanup: {e}")
 
     logger.debug(f"📁 Ensured .claude/skills directory exists: {claude_skills_path}")
     return claude_skills_path
@@ -866,7 +866,7 @@ def extract_skill_file(skill_content: bytes, skill_filename: str, target_dir: Pa
                             else:
                                 dest.unlink()
                         shutil.move(str(item), str(dest))
-                    logger.info(f"✅ Moved commands to {target_commands}")
+                    logger.info(f"  Moved commands to {target_commands}")
 
                 if nested_skills.exists():
                     # Move skills to target_dir (which is .claude/skills)
@@ -878,7 +878,7 @@ def extract_skill_file(skill_content: bytes, skill_filename: str, target_dir: Pa
                             else:
                                 dest.unlink()
                         shutil.move(str(item), str(dest))
-                    logger.info(f"✅ Moved skills to {target_dir}")
+                    logger.info(f"  Moved skills to {target_dir}")
             else:
                 # No nested .claude, move all contents directly
                 for item in temp_extract_dir.iterdir():
@@ -897,15 +897,15 @@ def extract_skill_file(skill_content: bytes, skill_filename: str, target_dir: Pa
                 if temp_zip.exists():
                     temp_zip.unlink()
             except Exception as e:
-                logger.warning(f"⚠️ Failed to delete temp zip: {e}")
+                logger.warning(f"Failed to delete temp zip: {e}")
 
             try:
                 if temp_extract_dir.exists():
                     shutil.rmtree(temp_extract_dir)
             except Exception as e:
-                logger.warning(f"⚠️ Failed to delete temp extract dir: {e}")
+                logger.warning(f"Failed to delete temp extract dir: {e}")
 
-            logger.info(f"✅ Extracted {skill_filename} to {target_dir}")
+            logger.info(f"  Extracted {skill_filename} to {target_dir}")
 
         elif skill_filename.endswith(".skill"):
             # Copy .skill file directly
@@ -914,19 +914,19 @@ def extract_skill_file(skill_content: bytes, skill_filename: str, target_dir: Pa
             skill_file = target_dir / skill_filename
             skill_file.write_bytes(skill_content)
 
-            logger.info(f"✅ Copied {skill_filename} to {target_dir}")
+            logger.info(f"  Copied {skill_filename} to {target_dir}")
 
         else:
-            logger.warning(f"⚠️  Unknown skill file format: {skill_filename}")
+            logger.warning(f"Unknown skill file format: {skill_filename}")
             return False
 
         return True
 
     except zipfile.BadZipFile as e:
-        logger.error(f"❌ Invalid zip file {skill_filename}: {e}")
+        logger.error(f"Invalid zip file {skill_filename}: {e}")
         return False
     except Exception as e:
-        logger.error(f"❌ Failed to extract/copy skill file {skill_filename}: {e}")
+        logger.error(f"Failed to extract/copy skill file {skill_filename}: {e}")
         return False
 
 
@@ -974,7 +974,7 @@ async def sync_user_skills(auth_token: str) -> Dict[str, Any]:
             "errors": ["Invalid auth token"]
         }
 
-    logger.info(f"🔄 Starting skill sync for user: {user_id}")
+    logger.info(f"Starting skill sync for user: {user_id}")
 
     # Get user's workspace path
     workspace_path = get_user_workspace_path(user_id)
@@ -986,7 +986,7 @@ async def sync_user_skills(auth_token: str) -> Dict[str, Any]:
     skill_files = await list_skill_files(user_id)
 
     if not skill_files:
-        logger.info(f"ℹ️  No skill files found for user: {user_id}")
+        logger.info(f"No skill files found for user: {user_id}")
         return {
             "success": True,
             "synced_count": 0,
@@ -1019,7 +1019,7 @@ async def sync_user_skills(auth_token: str) -> Dict[str, Any]:
             if extract_skill_file(skill_content, skill_filename, skills_dir):
                 synced_count += 1
                 synced_skills.append(skill_filename)
-                logger.info(f"✅ Synced skill: {skill_filename}")
+                logger.info(f"  Synced skill: {skill_filename}")
             else:
                 failed_count += 1
                 errors.append(f"Failed to extract: {skill_filename}")
@@ -1028,7 +1028,7 @@ async def sync_user_skills(auth_token: str) -> Dict[str, Any]:
             failed_count += 1
             error_msg = f"Error syncing {skill_filename}: {str(e)}"
             errors.append(error_msg)
-            logger.error(f"❌ {error_msg}")
+            logger.error(f"{error_msg}")
 
     logger.info(
         f"🏁 Skill sync completed for user {user_id}: "
@@ -1088,7 +1088,7 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
         )
 
         if not installed_plugins:
-            logger.info(f"ℹ️  No installed plugins found for user: {user_id}")
+            logger.info(f"No installed plugins found for user: {user_id}")
             return {
                 "success": True,
                 "verified_count": 0,
@@ -1096,7 +1096,7 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
                 "message": "No plugins installed"
             }
 
-        logger.info(f"📋 Found {len(installed_plugins)} installed plugins")
+        logger.info(f"Found {len(installed_plugins)} installed plugins")
 
         # Get user workspace
         workspace_path = get_user_workspace_path(user_id)
@@ -1121,7 +1121,7 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
 
             # Check if plugin exists (from git clone)
             if plugin_path.exists():
-                logger.info(f"   ✅ {plugin_name} - exists at {plugin_path}")
+                logger.info(f"     {plugin_name} - exists at {plugin_path}")
                 verified_count += 1
                 continue
 
@@ -1131,13 +1131,13 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
 
             if git_dir.exists():
                 # Git repo exists but plugin path doesn't - might be wrong install_path
-                logger.warning(f"   ⚠️  {plugin_name} - not found at {plugin_path}")
+                logger.warning(f"   {plugin_name} - not found at {plugin_path}")
                 logger.info(f"      Git repo exists at {marketplace_dir}")
                 missing_plugins.append(plugin_name)
                 continue
 
             # No git repo - need to clone the marketplace
-            logger.info(f"   🔄 {plugin_name} - marketplace not cloned, attempting to clone: {marketplace_name}")
+            logger.info(f"   {plugin_name} - marketplace not cloned, attempting to clone: {marketplace_name}")
 
             # Get marketplace info from cache or database
             if marketplace_name not in marketplace_cache:
@@ -1160,7 +1160,7 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
             marketplace_info = marketplace_cache[marketplace_name]
 
             if not marketplace_info or not marketplace_info.get("repository_url"):
-                logger.warning(f"   ❌ {plugin_name} - no repository_url found for marketplace: {marketplace_name}")
+                logger.warning(f"   {plugin_name} - no repository_url found for marketplace: {marketplace_name}")
                 missing_plugins.append(plugin_name)
                 continue
 
@@ -1172,30 +1172,30 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
             success, result, was_cloned = await ensure_repository(repo_url, marketplace_dir, branch)
 
             if not success:
-                logger.error(f"   ❌ Failed to clone marketplace {marketplace_name}: {result}")
+                logger.error(f"   Failed to clone marketplace {marketplace_name}: {result}")
                 missing_plugins.append(plugin_name)
                 continue
 
             if was_cloned:
                 cloned_count += 1
-                logger.info(f"   ✅ Cloned marketplace: {marketplace_name} (commit: {result[:8] if result else 'unknown'})")
+                logger.info(f"     Cloned marketplace: {marketplace_name} (commit: {result[:8] if result else 'unknown'})")
 
             # Re-check if plugin exists after cloning
             if plugin_path.exists():
-                logger.info(f"   ✅ {plugin_name} - now exists at {plugin_path}")
+                logger.info(f"     {plugin_name} - now exists at {plugin_path}")
                 verified_count += 1
             else:
-                logger.warning(f"   ⚠️  {plugin_name} - still not found after cloning marketplace")
+                logger.warning(f"   {plugin_name} - still not found after cloning marketplace")
                 missing_plugins.append(plugin_name)
 
         # Log summary
         if missing_plugins:
-            logger.warning(f"⚠️  {len(missing_plugins)} plugins not found: {missing_plugins}")
+            logger.warning(f"{len(missing_plugins)} plugins not found: {missing_plugins}")
 
         if cloned_count > 0:
             logger.info(f"📥 Auto-cloned {cloned_count} marketplaces")
 
-        logger.info(f"✅ Verified {verified_count}/{len(installed_plugins)} plugins for user: {user_id}")
+        logger.info(f"  Verified {verified_count}/{len(installed_plugins)} plugins for user: {user_id}")
 
         return {
             "success": True,
@@ -1206,7 +1206,7 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"❌ Error verifying plugins: {e}", exc_info=True)
+        logger.error(f"Error verifying plugins: {e}", exc_info=True)
         return {
             "success": False,
             "verified_count": 0,
@@ -1270,7 +1270,7 @@ async def sync_memory_to_workspace(user_id: str, scope: str = "local") -> Dict[s
         # Write to CLAUDE.md
         claude_md_path.write_text(content, encoding="utf-8")
 
-        logger.info(f"✅ CLAUDE.md synced ({len(content)} chars) to: {claude_md_path}")
+        logger.info(f"  CLAUDE.md synced ({len(content)} chars) to: {claude_md_path}")
 
         return {
             "success": True,
@@ -1280,7 +1280,7 @@ async def sync_memory_to_workspace(user_id: str, scope: str = "local") -> Dict[s
 
     except Exception as e:
         error_msg = f"Failed to sync memory: {str(e)}"
-        logger.error(f"❌ {error_msg}")
+        logger.error(f"{error_msg}")
         return {
             "success": False,
             "content_length": 0,
@@ -1316,11 +1316,11 @@ async def get_user_allowed_tools(user_id: str) -> List[str]:
             return []
 
         allowed_tools = [item.get("tool_name") for item in result if item.get("tool_name")]
-        logger.info(f"✅ Loaded {len(allowed_tools)} allowed tools for user {user_id}")
+        logger.info(f"  Loaded {len(allowed_tools)} allowed tools for user {user_id}")
         return allowed_tools
 
     except Exception as e:
-        logger.error(f"❌ Failed to load allowed tools for user {user_id}: {e}")
+        logger.error(f"Failed to load allowed tools for user {user_id}: {e}")
         return []
 
 
@@ -1353,11 +1353,11 @@ async def add_user_allowed_tool(user_id: str, tool_name: str) -> bool:
             fetch="none"
         )
 
-        logger.info(f"✅ Added {tool_name} to allowed tools for user {user_id}")
+        logger.info(f"  Added {tool_name} to allowed tools for user {user_id}")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to add allowed tool {tool_name} for user {user_id}: {e}")
+        logger.error(f"Failed to add allowed tool {tool_name} for user {user_id}: {e}")
         return False
 
 
@@ -1385,10 +1385,10 @@ async def delete_user_allowed_tool(user_id: str, tool_name: str) -> bool:
             fetch="none"
         )
 
-        logger.info(f"✅ Removed {tool_name} from allowed tools for user {user_id}")
+        logger.info(f"  Removed {tool_name} from allowed tools for user {user_id}")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to remove allowed tool {tool_name} for user {user_id}: {e}")
+        logger.error(f"Failed to remove allowed tool {tool_name} for user {user_id}: {e}")
         return False
 

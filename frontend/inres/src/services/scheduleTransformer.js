@@ -255,7 +255,7 @@ export const generateRotationShifts = (rotation, members, weeksAhead = 52) => {
     }
   }
 
-  console.log(`✅ Generated ${backendSchedules.length} shifts total`);
+  console.log(`  Generated ${backendSchedules.length} shifts total`);
   return backendSchedules;
 };
 
@@ -289,7 +289,7 @@ export const transformScheduleDataWithRotation = (scheduleData, options = {}) =>
       console.log(`📅 Generating yearly shifts for ${weeksAhead} weeks`);
       // Generate shifts for the entire year
       const yearlyShifts = generateRotationShifts(rotation, scheduleData.members, weeksAhead);
-      console.log(`✅ Generated ${yearlyShifts.length} yearly shifts`);
+      console.log(`  Generated ${yearlyShifts.length} yearly shifts`);
       backendSchedules.push(...yearlyShifts);
     } else {
       // Legacy behavior: Create schedules for each member with proper rotation timing (single shift per member)

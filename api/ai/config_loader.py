@@ -28,7 +28,7 @@ def load_config():
                 break
 
         if not config_path:
-            logger.info("ℹ️  No config file found, skipping config file load")
+            logger.info("No config file found, skipping config file load")
             return
 
     try:
@@ -36,10 +36,10 @@ def load_config():
             config = yaml.safe_load(f)
             
         if not config:
-            logger.warning(f"⚠️  Config file {config_path} is empty")
+            logger.warning(f"Config file {config_path} is empty")
             return
 
-        logger.info(f"✅ Loaded config from {config_path}")
+        logger.info(f"  Loaded config from {config_path}")
         
         # Map config keys to environment variables
         # This allows existing code using os.getenv to work without changes
@@ -73,4 +73,4 @@ def load_config():
                 logger.info(f"[config_loader] Set {env_key}={str(config[config_key])[:30]}...")
 
     except Exception as e:
-        logger.error(f"❌ Failed to load config file: {e}")
+        logger.error(f"Failed to load config file: {e}")

@@ -134,7 +134,7 @@ export default function WorkerDetailsModal({ deployment, onClose, onUpdate, onDe
                         </div>
                         <div className="flex-1">
                             <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-1">
-                                Worker API URL {deployment.worker_url ? '✅' : '⚠️ Not configured'}
+                                Worker API URL {deployment.worker_url ? ' ' : '⚠️ Not configured'}
                             </h4>
                             <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">
                                 {deployment.worker_url 

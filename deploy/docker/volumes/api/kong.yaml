@@ -23,12 +23,12 @@ services:
     plugins:
       - name: cors
 
-  ## AI Service
-  - name: ai-service
-    _comment: 'AI: /ai/* -> http://ai:8002/*'
-    url: http://ai:8002/
+  ## AI Agent Service
+  - name: agent-service
+    _comment: 'AI: /ai/* -> http://agent:8002/*'
+    url: http://agent:8002/
     routes:
-      - name: ai-routes
+      - name: agent-routes
         strip_path: true
         paths:
           - /ai/
@@ -36,9 +36,9 @@ services:
       - name: cors
 
   ## WebSocket for AI Chat
-  - name: ai-websocket
-    _comment: 'WebSocket: /ws/chat -> ws://ai:8002/ws/chat'
-    url: http://ai:8002
+  - name: agent-websocket
+    _comment: 'WebSocket: /ws/chat -> ws://agent:8002/ws/chat'
+    url: http://agent:8002
     protocol: ws
     routes:
       - name: ai-ws-route
@@ -58,6 +58,18 @@ services:
         strip_path: false
         paths:
           - /ws/terminal
+    plugins:
+      - name: cors
+
+  ## Webhook Service - External Integrations (PagerDuty, etc.)
+  - name: webhook-service
+    _comment: 'Webhook: /webhook/* -> http://api:8080/webhook/*'
+    url: http://api:8080/
+    routes:
+      - name: webhook-routes
+        strip_path: false
+        paths:
+          - /webhook
     plugins:
       - name: cors
 

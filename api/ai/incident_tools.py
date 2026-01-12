@@ -33,7 +33,7 @@ def set_auth_token(token: str) -> None:
         token: The JWT authentication token from the frontend
     """
     _auth_token_ctx.set(token)
-    print(f"🔑 Auth token set for incident_tools (length: {len(token) if token else 0})")
+    print(f"Auth token set for incident_tools (length: {len(token) if token else 0})")
 
 
 def get_auth_token() -> str:
@@ -56,7 +56,7 @@ def set_org_id(org_id: str) -> None:
         org_id: The organization ID from the frontend context
     """
     _org_id_ctx.set(org_id)
-    # print(f"🏢 Org ID set for incident_tools: {org_id}")
+    # print(f"Org ID set for incident_tools: {org_id}")
 
 
 def get_org_id() -> str:
@@ -78,7 +78,7 @@ def set_project_id(project_id: str) -> None:
         project_id: The project ID from the frontend context
     """
     _project_id_ctx.set(project_id)
-    # print(f"📁 Project ID set for incident_tools: {project_id}")
+    # print(f"Project ID set for incident_tools: {project_id}")
 
 
 def get_project_id() -> str:
@@ -172,12 +172,12 @@ async def _get_incidents_by_time_impl(args: dict[str, Any]) -> dict[str, Any]:
                     # Format the response
                     if not incidents:
                         result_text = (
-                            f"📭 No incidents found between {start_time} and {end_time}"
+                            f"No incidents found between {start_time} and {end_time}"
                         )
                         if status != "all":
                             result_text += f" with status '{status}'"
                     else:
-                        result_text = f"📊 Found {len(incidents)} incident(s) between {start_time} and {end_time}\n\n"
+                        result_text = f"Found {len(incidents)} incident(s) between {start_time} and {end_time}\n\n"
 
                         for idx, incident in enumerate(incidents, 1):
                             result_text += f"**Incident #{idx}**\n"
@@ -215,7 +215,7 @@ async def _get_incidents_by_time_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "❌ Error: Authentication failed. Please check your API token.",
+                                "text": "Error: Authentication failed. Please check your API token.",
                             }
                         ],
                         "isError": True,
@@ -227,7 +227,7 @@ async def _get_incidents_by_time_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": f"❌ Error: API request failed with status {response.status}\n{error_text}",
+                                "text": f"Error: API request failed with status {response.status}\n{error_text}",
                             }
                         ],
                         "isError": True,
@@ -238,7 +238,7 @@ async def _get_incidents_by_time_impl(args: dict[str, Any]) -> dict[str, Any]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"❌ Error: Network error occurred: {str(e)}\nPlease check if the inres API is running at {API_BASE_URL}",
+                    "text": f"Error: Network error occurred: {str(e)}\nPlease check if the inres API is running at {API_BASE_URL}",
                 }
             ],
             "isError": True,
@@ -249,7 +249,7 @@ async def _get_incidents_by_time_impl(args: dict[str, Any]) -> dict[str, Any]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"❌ Error: Unexpected error occurred: {str(e)}",
+                    "text": f"Error: Unexpected error occurred: {str(e)}",
                 }
             ],
             "isError": True,
@@ -270,7 +270,7 @@ async def _get_incident_by_id_impl(args: dict[str, Any]) -> dict[str, Any]:
 
     if not incident_id:
         return {
-            "content": [{"type": "text", "text": "❌ Error: incident_id is required"}],
+            "content": [{"type": "text", "text": "Error: incident_id is required"}],
             "isError": True,
         }
 
@@ -351,7 +351,7 @@ async def _get_incident_by_id_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": f"❌ Error: Incident with ID '{incident_id}' not found",
+                                "text": f"Error: Incident with ID '{incident_id}' not found",
                             }
                         ],
                         "isError": True,
@@ -362,7 +362,7 @@ async def _get_incident_by_id_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "❌ Error: Authentication failed. Please check your API token.",
+                                "text": "Error: Authentication failed. Please check your API token.",
                             }
                         ],
                         "isError": True,
@@ -374,7 +374,7 @@ async def _get_incident_by_id_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": f"❌ Error: API request failed with status {response.status}\n{error_text}",
+                                "text": f"Error: API request failed with status {response.status}\n{error_text}",
                             }
                         ],
                         "isError": True,
@@ -382,7 +382,7 @@ async def _get_incident_by_id_impl(args: dict[str, Any]) -> dict[str, Any]:
 
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"❌ Error: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Error: {str(e)}"}],
             "isError": True,
         }
 
@@ -405,7 +405,7 @@ async def _get_incident_stats_impl(args: dict[str, Any]) -> dict[str, Any]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"❌ Error: Invalid time_range. Must be one of: {', '.join(valid_ranges)}",
+                    "text": f"Error: Invalid time_range. Must be one of: {', '.join(valid_ranges)}",
                 }
             ],
             "isError": True,
@@ -464,7 +464,7 @@ async def _get_incident_stats_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "❌ Error: Authentication failed. Please check your API token.",
+                                "text": "Error: Authentication failed. Please check your API token.",
                             }
                         ],
                         "isError": True,
@@ -476,7 +476,7 @@ async def _get_incident_stats_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": f"❌ Error: API request failed with status {response.status}\n{error_text}",
+                                "text": f"Error: API request failed with status {response.status}\n{error_text}",
                             }
                         ],
                         "isError": True,
@@ -484,7 +484,7 @@ async def _get_incident_stats_impl(args: dict[str, Any]) -> dict[str, Any]:
 
     except Exception as e:
         return {
-            "content": [{"type": "text", "text": f"❌ Error: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Error: {str(e)}"}],
             "isError": True,
         }
 
@@ -543,7 +543,7 @@ async def _get_current_time_impl(args: dict[str, Any]) -> dict[str, Any]:
     now = datetime.utcnow()
 
     # Format response with common time ranges
-    result_text = f"🕐 **Current Time (UTC)**\n\n"
+    result_text = f"**Current Time (UTC)**\n\n"
     result_text += f"Current: {now.strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
     result_text += (
         f"1 hour ago: {(now - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
@@ -589,7 +589,7 @@ async def _search_incidents_impl(args: dict[str, Any]) -> dict[str, Any]:
     if not query or query.strip() == "":
         return {
             "content": [
-                {"type": "text", "text": "❌ Error: Search query is required"}
+                {"type": "text", "text": "Error: Search query is required"}
             ],
             "isError": True,
         }
@@ -598,7 +598,7 @@ async def _search_incidents_impl(args: dict[str, Any]) -> dict[str, Any]:
     if limit < 1 or limit > 100:
         return {
             "content": [
-                {"type": "text", "text": "❌ Error: Limit must be between 1 and 100"}
+                {"type": "text", "text": "Error: Limit must be between 1 and 100"}
             ],
             "isError": True,
         }
@@ -643,7 +643,7 @@ async def _search_incidents_impl(args: dict[str, Any]) -> dict[str, Any]:
 
                     # Format the response
                     if not incidents:
-                        result_text = f"📭 No incidents found matching '{query}'"
+                        result_text = f"No incidents found matching '{query}'"
                         if status != "all":
                             result_text += f" with status '{status}'"
                         if severity:
@@ -688,7 +688,7 @@ async def _search_incidents_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "❌ Error: Authentication failed. Please check your API token.",
+                                "text": "Error: Authentication failed. Please check your API token.",
                             }
                         ],
                         "isError": True,
@@ -700,7 +700,7 @@ async def _search_incidents_impl(args: dict[str, Any]) -> dict[str, Any]:
                         "content": [
                             {
                                 "type": "text",
-                                "text": f"❌ Error: API request failed with status {response.status}\n{error_text}",
+                                "text": f"Error: API request failed with status {response.status}\n{error_text}",
                             }
                         ],
                         "isError": True,
@@ -711,7 +711,7 @@ async def _search_incidents_impl(args: dict[str, Any]) -> dict[str, Any]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"❌ Error: Network error occurred: {str(e)}\nPlease check if the inres API is running at {API_BASE_URL}",
+                    "text": f"Error: Network error occurred: {str(e)}\nPlease check if the inres API is running at {API_BASE_URL}",
                 }
             ],
             "isError": True,
@@ -722,7 +722,7 @@ async def _search_incidents_impl(args: dict[str, Any]) -> dict[str, Any]:
             "content": [
                 {
                     "type": "text",
-                    "text": f"❌ Error: Unexpected error occurred: {str(e)}",
+                    "text": f"Error: Unexpected error occurred: {str(e)}",
                 }
             ],
             "isError": True,

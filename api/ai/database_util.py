@@ -22,7 +22,7 @@ def get_db_connection():
         conn = psycopg2.connect(config.database_url)
         yield conn
     except Exception as e:
-        logger.error(f"❌ Database connection error: {e}")
+        logger.error(f"Database connection error: {e}")
         if conn:
             conn.rollback()
         raise
@@ -55,7 +55,7 @@ def execute_query(query: str, params: tuple = None, fetch: str = "all"):
                     conn.commit()
                     return None
             except Exception as e:
-                logger.error(f"❌ Query execution failed: {e}")
+                logger.error(f"Query execution failed: {e}")
                 logger.debug(f"Query: {query}, Params: {params}")
                 raise
 
@@ -89,7 +89,7 @@ def ensure_user_exists(user_id: str, email: Optional[str] = None, name: Optional
         )
 
         if existing:
-            logger.debug(f"✅ User already exists: {user_id}")
+            logger.debug(f"  User already exists: {user_id}")
             return True
 
         # User doesn't exist, create minimal record
@@ -114,11 +114,11 @@ def ensure_user_exists(user_id: str, email: Optional[str] = None, name: Optional
             fetch="none"
         )
 
-        logger.info(f"✅ Created user record: {user_id}")
+        logger.info(f"  Created user record: {user_id}")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to ensure user exists: {e}")
+        logger.error(f"Failed to ensure user exists: {e}")
         return False
 
 
@@ -170,5 +170,5 @@ def extract_user_info_from_token(auth_token: str) -> Optional[Dict[str, Any]]:
         }
 
     except Exception as e:
-        logger.error(f"❌ Failed to extract user info from token: {e}")
+        logger.error(f"Failed to extract user info from token: {e}")
         return None

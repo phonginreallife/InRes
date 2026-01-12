@@ -85,7 +85,7 @@ func NewGinRouter(pg *sql.DB, redis *redis.Client) *gin.Engine {
 	// Initialize analytics service for AI-powered incident analysis
 	analyticsService := services.NewIncidentAnalyticsService(pg)
 	if err := analyticsService.CreateQueueIfNotExists(); err != nil {
-		log.Printf("⚠️  Warning: Failed to create analytics queue: %v", err)
+		log.Printf("Warning: Failed to create analytics queue: %v", err)
 	}
 
 	incidentHandler := handlers.NewIncidentHandler(incidentService, serviceService, projectService, authzBackend, analyticsService) // NEW: Incident handler with ReBAC
@@ -459,7 +459,7 @@ func NewGinRouter(pg *sql.DB, redis *redis.Client) *gin.Engine {
 			groupRoutes.GET("/:id/shifts", schedulerHandler.GetGroupShifts)                                      // Get all shifts in group (with scheduler context)
 
 			// Debug: Log that delete route is registered
-			log.Println("🔧 DELETE route registered: /groups/:id/schedulers/:scheduler_id")
+			log.Println("DELETE route registered: /groups/:id/schedulers/:scheduler_id")
 
 			// Test endpoint to verify route pattern
 			groupRoutes.GET("/:id/schedulers/:scheduler_id/test", func(c *gin.Context) {

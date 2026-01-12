@@ -66,7 +66,7 @@ func LoadConfig(path string) error {
 		// Ignore error if .env doesn't exist (e.g. in Production/Docker)
 		// But if it fails for other reasons, it's fine, we continue
 	} else {
-		log.Println("✅ Loaded .env file")
+		log.Println("  Loaded .env file")
 	}
 
 	v := viper.New()
@@ -125,12 +125,12 @@ func LoadConfig(path string) error {
 	// 1. Read config file
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			log.Println("ℹ️  No config file found, using defaults and environment variables")
+			log.Println("No config file found, using defaults and environment variables")
 		} else {
 			return err
 		}
 	} else {
-		log.Printf("✅ Loaded config from: %s", v.ConfigFileUsed())
+		log.Printf("  Loaded config from: %s", v.ConfigFileUsed())
 	}
 
 	// 2. Unmarshal into struct

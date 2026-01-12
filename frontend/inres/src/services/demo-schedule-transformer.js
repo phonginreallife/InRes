@@ -42,7 +42,7 @@ console.log('🧪 Testing Schedule Transformer Functions\n');
 console.log('📅 Test 1: Yearly rotation generation (52 weeks)');
 try {
   const yearlyShifts = transformScheduleDataWithRotation(mockScheduleData);
-  console.log(`✅ Generated ${yearlyShifts.length} shifts for the year`);
+  console.log(`  Generated ${yearlyShifts.length} shifts for the year`);
   
   // Show first 3 shifts
   console.log('First 3 shifts:');
@@ -59,7 +59,7 @@ try {
 console.log('📅 Test 2: Quarterly rotation generation (12 weeks)');
 try {
   const quarterlyShifts = transformScheduleDataWithYearlyRotation(mockScheduleData, 12);
-  console.log(`✅ Generated ${quarterlyShifts.length} shifts for 12 weeks`);
+  console.log(`  Generated ${quarterlyShifts.length} shifts for 12 weeks`);
   
   // Show all shifts for quarterly
   console.log('All quarterly shifts:');
@@ -78,7 +78,7 @@ try {
 console.log('📅 Test 3: Single shift per member (legacy)');
 try {
   const singleShifts = transformScheduleDataSingleShift(mockScheduleData);
-  console.log(`✅ Generated ${singleShifts.length} shifts (one per member)`);
+  console.log(`  Generated ${singleShifts.length} shifts (one per member)`);
   
   // Show all single shifts
   console.log('Single shifts:');
@@ -100,7 +100,7 @@ try {
   };
   
   const dailyShifts = generateRotationShifts(dailyRotation, mockMembers, 1);
-  console.log(`✅ Generated ${dailyShifts.length} daily shifts for 1 week`);
+  console.log(`  Generated ${dailyShifts.length} daily shifts for 1 week`);
   
   // Show all daily shifts
   console.log('Daily shifts:');
@@ -121,7 +121,7 @@ try {
     weeksAhead: 4,
     generateYearlyShifts: true
   });
-  console.log(`✅ Generated ${customShifts.length} shifts for 4 weeks`);
+  console.log(`  Generated ${customShifts.length} shifts for 4 weeks`);
   
   // Show rotation pattern
   console.log('Rotation pattern:');

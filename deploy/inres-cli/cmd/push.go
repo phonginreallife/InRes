@@ -26,7 +26,7 @@ var allServices = []string{"web", "api", "ai", "slack-worker"}
 var serviceImageMap = map[string]string{
 	"web":          "inres-web",
 	"api":          "inres-api",
-	"ai":           "inres-ai",
+	"ai":           "inres-agent",
 	"slack-worker": "inres-slack-worker",
 }
 
@@ -37,8 +37,8 @@ var pushCmd = &cobra.Command{
 
 Examples:
   inres push                    # Build and push all services
-  inres push ai                 # Build and push only AI service
-  inres push api ai             # Build and push API and AI services
+  inres push agent                 # Build and push only AI service
+  inres push api agent             # Build and push API and AI services
   inres push --registry=myregistry.io/myorg --tag=2.0.0 web api`,
 	Run: func(cmd *cobra.Command, args []string) {
 		targetServices := getTargetServices(args)
@@ -53,8 +53,8 @@ var buildCmd = &cobra.Command{
 
 Examples:
   inres build                   # Build all services
-  inres build ai                # Build only AI service
-  inres build api ai            # Build API and AI services
+  inres build agent                # Build only AI service
+  inres build api agent            # Build API and AI services
   inres build --tag=2.0.0 web   # Build web service with custom tag`,
 	Run: func(cmd *cobra.Command, args []string) {
 		targetServices := getTargetServices(args)

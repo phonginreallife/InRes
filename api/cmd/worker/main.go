@@ -21,33 +21,33 @@ func main() {
 	configPath := os.Getenv("inres_CONFIG_PATH")
 
 	if err := config.LoadConfig(configPath); err != nil {
-		log.Fatalf("❌ Failed to load config: %v", err)
+		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Database connection
 	if config.App.DatabaseURL == "" {
-		log.Fatal("❌ DATABASE_URL environment variable (or config) is required")
+		log.Fatal("DATABASE_URL environment variable (or config) is required")
 	}
 
 	pg, err := sql.Open("postgres", config.App.DatabaseURL)
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to database: %v", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer pg.Close()
 
 	// Test database connection
 	if err := pg.Ping(); err != nil {
-		log.Fatalf("❌ Failed to ping database: %v", err)
+		log.Fatalf("Failed to ping database: %v", err)
 	}
 
 	// Set timezone to UTC for consistent time handling
 	if _, err := pg.Exec("SET TIME ZONE 'UTC'"); err != nil {
-		log.Printf("⚠️  Failed to set timezone to UTC: %v", err)
+		log.Printf("Failed to set timezone to UTC: %v", err)
 	} else {
-		log.Println("✅ Set database timezone to UTC")
+		log.Println("  Set database timezone to UTC")
 	}
 
-	log.Println("✅ Connected to database successfully")
+	log.Println("  Connected to database successfully")
 
 	// Initialize services
 	fcmService, _ := services.NewFCMService(pg)
