@@ -1,13 +1,11 @@
 """
-Legacy Module - Claude SDK Block-based Responses.
+Legacy Package - Block-based Claude Agent SDK Integration.
 
-This module provides the original agent implementation using the
+This package provides the original agent implementation using the
 Claude Agent SDK, which delivers block-based responses.
 
-Components:
-- Agent task functions from claude_agent_api_v1.py
-- Full permission handling and hooks
-- Comprehensive audit integration
+The main implementation remains in claude_agent_api_v1.py for now.
+This package provides a clean import interface.
 
 Features:
 - Block-based streaming (complete message blocks)
@@ -15,25 +13,32 @@ Features:
 - Tool approval workflow (interactive, rule_based, hybrid)
 - Complete audit trail for all operations
 
-Note:
-    This module is maintained for backwards compatibility and as a
-    fallback option. New features should be developed in the streaming
-    module where possible.
-
 Usage:
-    The legacy agent is accessed via the /ws/chat WebSocket endpoint
-    defined in claude_agent_api_v1.py.
+    from legacy import agent_task, agent_task_streaming
+    
+    # Or access the full app
+    from legacy import app
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Import main components from legacy module
+from claude_agent_api_v1 import (
+    app,
+    agent_task,
+    agent_task_streaming,
+    websocket_chat,
+    websocket_secure_chat,
+    verify_websocket_auth,
+)
+
 __all__ = [
+    "app",
     "agent_task",
     "agent_task_streaming",
+    "websocket_chat",
+    "websocket_secure_chat",
+    "verify_websocket_auth",
 ]
-
-# Lazy imports from the main module
-def __getattr__(name):
-    if name in ("agent_task", "agent_task_streaming"):
-        from claude_agent_api_v1 import agent_task, agent_task_streaming
-        return locals()[name]
-    
-    raise AttributeError(f"module 'legacy' has no attribute '{name}'")

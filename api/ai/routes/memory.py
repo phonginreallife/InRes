@@ -7,6 +7,10 @@ Handles:
 - DELETE /api/memory - Delete memory
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import logging
 from datetime import datetime
 from fastapi import APIRouter, Request

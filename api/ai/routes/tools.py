@@ -8,8 +8,13 @@ Handles:
 """
 
 import logging
-from fastapi import APIRouter, Request
+import sys
+from pathlib import Path
 
+# Add parent directory to path for sibling imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from fastapi import APIRouter, Request
 from supabase_storage import (
     extract_user_id_from_token,
     get_user_allowed_tools,

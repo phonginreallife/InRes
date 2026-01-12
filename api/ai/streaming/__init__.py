@@ -25,6 +25,7 @@ Usage:
 from .agent import StreamingAgent, create_streaming_agent, INCIDENT_TOOLS
 from .mcp_client import MCPToolManager, MCPServerPool, get_mcp_pool
 from .routes import router as streaming_router
+from .mcp_config import MCPConfigManager
 
 __all__ = [
     # Agent
@@ -35,6 +36,7 @@ __all__ = [
     "MCPToolManager",
     "MCPServerPool",
     "get_mcp_pool",
+    "MCPConfigManager",
     # Routes
     "streaming_router",
 ]

@@ -7,6 +7,10 @@ Handles:
 - DELETE /api/mcp-servers/{server_name} - Delete MCP server
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import json
 import logging
 from fastapi import APIRouter, Request

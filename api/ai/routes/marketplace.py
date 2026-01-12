@@ -21,8 +21,12 @@ import json
 import logging
 import re
 import shutil
+import sys
 from pathlib import Path
 from asyncio import Lock
+
+# Add parent directory to path for sibling imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from datetime import datetime
 
 import httpx

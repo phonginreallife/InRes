@@ -1,3 +1,13 @@
+"""
+Claude Agent API v1 - Legacy Block-based Agent.
+
+This module provides the legacy Claude Agent SDK integration with
+block-based (not token-level) streaming.
+
+NOTE: This file is kept for backwards compatibility. New features
+should be developed in the streaming package.
+"""
+
 import asyncio
 import json
 import logging
@@ -7,7 +17,7 @@ import uuid
 from pathlib import Path
 
 # Load config from YAML (unifies config with Go API)
-import config_loader
+from config import loader as config_loader
 config_loader.load_config()
 
 from asyncio import Lock
@@ -34,17 +44,19 @@ from claude_agent_sdk import (
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from incident_tools import create_incident_tools_server, set_auth_token, set_org_id, set_project_id
-from zero_trust_verifier import get_verifier, init_verifier
-from audit_service import (
+
+# Import from organized packages
+from tools import create_incident_tools_server, set_auth_token, set_org_id, set_project_id
+from security import get_verifier, init_verifier
+from audit import (
     get_audit_service,
     init_audit_service,
     shutdown_audit_service,
     EventType,
     EventStatus,
+    build_hooks_config,
 )
-from audit_hooks import build_hooks_config
-from supabase_storage import (
+from services import (
     extract_user_id_from_token,
     get_user_mcp_servers,
     get_user_workspace_path,
@@ -56,31 +68,29 @@ from supabase_storage import (
     get_user_allowed_tools,
     add_user_allowed_tool,
     delete_user_allowed_tool,
+    start_pgmq_consumer,
+    stop_pgmq_consumer,
 )
+from utils import execute_query
 
-# Import database routes (split for better organization)
-from routes_db import router as db_router
-from database_util import execute_query
-
-# Import conversation routes and helper functions
-from routes_conversations import (
-    router as conversations_router,
+# Import routers from routes package
+from routes import (
+    db_router,
+    conversations_router,
+    audit_router,
+    sync_router,
+    mcp_router,
+    tools_router,
+    memory_router,
+    marketplace_router,
     save_conversation,
     save_message,
     update_conversation_activity,
 )
+from routes.sync import set_mcp_cache
 
-# Import audit routes
-from routes_audit import router as audit_router
-
-# Import modular routes (split for better maintainability)
-from routes_sync import router as sync_router, set_mcp_cache
-from routes_mcp import router as mcp_router
-from routes_tools import router as tools_router
-from routes_memory import router as memory_router
-from routes_marketplace import router as marketplace_router
-from streaming import streaming_router  # Moved to streaming package
-from incident_analytics import start_pgmq_consumer, stop_pgmq_consumer
+# Import streaming package
+from streaming import streaming_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

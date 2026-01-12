@@ -5,6 +5,10 @@ Provides endpoints to query and export audit logs.
 Split from claude_agent_api_v1.py for better code organization.
 """
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import csv
 import io
 import logging
