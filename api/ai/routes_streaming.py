@@ -45,61 +45,82 @@ async def verify_token(token: str) -> tuple[bool, str]:
         return False, "Authentication failed"
 
 
-async def tool_executor(tool_name: str, tool_input: Dict[str, Any]) -> str:
+async def tool_executor(tool_name: str, tool_input: Dict[str, Any], auth_token: str = None) -> str:
     """
-    Execute incident management tools.
+    Execute incident management tools via HTTP API calls.
     
-    This is a bridge to the existing incident_tools module.
-    In production, this should call the actual API endpoints.
+    Makes direct HTTP calls to the backend API for proper authentication.
     """
-    from incident_tools import (
-        _get_incidents_by_time_impl,
-        _get_incidents_by_id_impl,
-        _get_incident_stats_impl,
-    )
+    import httpx
     
     logger.info(f"🔧 Executing tool: {tool_name} with input: {tool_input}")
     
+    # Get API base URL from environment
+    api_base = os.getenv("INRES_API_URL", "http://inres-api:8080")
+    
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if auth_token:
+        headers["Authorization"] = f"Bearer {auth_token}"
+    
     try:
-        if tool_name == "get_incidents":
-            # Map to existing implementation
-            result = await _get_incidents_by_time_impl({
-                "status": tool_input.get("status"),
-                "limit": tool_input.get("limit", 10),
-                "time_range": "24h"
-            })
-            return json.dumps(result, indent=2, default=str)
-        
-        elif tool_name == "get_incident_details":
-            result = await _get_incidents_by_id_impl({
-                "incident_id": tool_input.get("incident_id")
-            })
-            return json.dumps(result, indent=2, default=str)
-        
-        elif tool_name == "get_incident_stats":
-            result = await _get_incident_stats_impl({
-                "time_range": tool_input.get("time_range", "24h")
-            })
-            return json.dumps(result, indent=2, default=str)
-        
-        elif tool_name == "acknowledge_incident":
-            # This would call the actual API
-            return json.dumps({
-                "status": "success",
-                "message": f"Incident {tool_input.get('incident_id')} acknowledged",
-                "note": tool_input.get("note", "")
-            })
-        
-        elif tool_name == "resolve_incident":
-            # This would call the actual API
-            return json.dumps({
-                "status": "success", 
-                "message": f"Incident {tool_input.get('incident_id')} resolved",
-                "resolution": tool_input.get("resolution", "")
-            })
-        
-        else:
-            return json.dumps({"error": f"Unknown tool: {tool_name}"})
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if tool_name == "get_incidents":
+                params = {
+                    "limit": tool_input.get("limit", 10),
+                }
+                if tool_input.get("status"):
+                    params["status"] = tool_input["status"]
+                
+                resp = await client.get(f"{api_base}/api/incidents", headers=headers, params=params)
+                if resp.status_code == 200:
+                    return json.dumps(resp.json(), indent=2, default=str)
+                return json.dumps({"error": f"API error: {resp.status_code}"})
+            
+            elif tool_name == "get_incident_details":
+                incident_id = tool_input.get("incident_id")
+                resp = await client.get(f"{api_base}/api/incidents/{incident_id}", headers=headers)
+                if resp.status_code == 200:
+                    return json.dumps(resp.json(), indent=2, default=str)
+                return json.dumps({"error": f"Incident not found: {incident_id}"})
+            
+            elif tool_name == "get_incident_stats":
+                time_range = tool_input.get("time_range", "24h")
+                resp = await client.get(f"{api_base}/api/incidents/stats", headers=headers, params={"range": time_range})
+                if resp.status_code == 200:
+                    return json.dumps(resp.json(), indent=2, default=str)
+                # Fallback: return basic stats if endpoint doesn't exist
+                return json.dumps({
+                    "time_range": time_range,
+                    "message": "Stats endpoint not available. Use get_incidents to see current incidents.",
+                    "suggestion": "Try asking to list incidents instead."
+                })
+            
+            elif tool_name == "acknowledge_incident":
+                incident_id = tool_input.get("incident_id")
+                resp = await client.post(
+                    f"{api_base}/api/incidents/{incident_id}/acknowledge",
+                    headers=headers,
+                    json={"note": tool_input.get("note", "")}
+                )
+                if resp.status_code == 200:
+                    return json.dumps({"status": "success", "message": f"Incident {incident_id} acknowledged"})
+                return json.dumps({"error": f"Failed to acknowledge: {resp.status_code}"})
+            
+            elif tool_name == "resolve_incident":
+                incident_id = tool_input.get("incident_id")
+                resp = await client.post(
+                    f"{api_base}/api/incidents/{incident_id}/resolve",
+                    headers=headers,
+                    json={"resolution": tool_input.get("resolution", "")}
+                )
+                if resp.status_code == 200:
+                    return json.dumps({"status": "success", "message": f"Incident {incident_id} resolved"})
+                return json.dumps({"error": f"Failed to resolve: {resp.status_code}"})
+            
+            else:
+                return json.dumps({"error": f"Unknown tool: {tool_name}"})
             
     except Exception as e:
         logger.error(f"Tool execution error: {e}", exc_info=True)
@@ -222,12 +243,16 @@ async def websocket_stream(websocket: WebSocket):
                     except asyncio.CancelledError:
                         pass
                 
+                # Create tool executor with auth token captured
+                async def execute_tool_with_auth(tool_name: str, tool_input: Dict[str, Any]) -> str:
+                    return await tool_executor(tool_name, tool_input, auth_token=token)
+                
                 # Start streaming response
                 stream_task = asyncio.create_task(
                     agent.stream_response(
                         prompt=prompt,
                         output_queue=output_queue,
-                        tool_executor=tool_executor
+                        tool_executor=execute_tool_with_auth
                     )
                 )
                 
