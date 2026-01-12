@@ -162,7 +162,10 @@ assets/
 # Docker
 # ==========================================
 .dockerignore
-
+deploy/docker/docker-compose.http-only.yaml
+deploy/docker/docker-compose.https.yaml
+deploy/docker/init-letsencrypt.sh
+deploy/docker/volumes/nginx/
 # ==========================================
 # OS specific
 # ==========================================
