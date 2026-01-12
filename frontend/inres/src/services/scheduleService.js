@@ -66,7 +66,7 @@ export const createMultipleSchedules = async (apiClient, groupId, scheduleData) 
   
   try {
     const newSchedules = await Promise.all(promises);
-    console.log(`✅ Successfully created ${newSchedules.length} schedules`);
+    console.log(`  Successfully created ${newSchedules.length} schedules`);
     return newSchedules;
   } catch (error) {
     console.error('❌ Failed to create schedules:', error);
@@ -98,7 +98,7 @@ export const createSchedulerWithShifts = async (apiClient, groupId, schedulerDat
   
   try {
     const response = await apiClient.createSchedulerWithShifts(groupId, schedulerData);
-    console.log('✅ Successfully created scheduler with shifts:', response);
+    console.log('  Successfully created scheduler with shifts:', response);
     return response;
   } catch (error) {
     console.error('❌ Failed to create scheduler with shifts:', error);
@@ -336,7 +336,7 @@ export class ScheduleManager {
     try {
       this.apiClient.setToken(token);
       await this.apiClient.deleteSchedule(scheduleId);
-      console.log(`✅ Successfully deleted schedule ${scheduleId}`);
+      console.log(`  Successfully deleted schedule ${scheduleId}`);
     } catch (error) {
       console.error('Failed to delete schedule:', error);
       throw error;

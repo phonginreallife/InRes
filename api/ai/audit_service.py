@@ -358,13 +358,13 @@ class AuditService:
     async def start(self):
         """Start the audit service background worker"""
         if not self.enabled:
-            logger.info("📝 Audit logging is disabled")
+            logger.info("Audit logging is disabled")
             return
 
         self._queue = asyncio.Queue(maxsize=self.max_queue_size)
         self._shutdown = False
         self._worker_task = asyncio.create_task(self._worker())
-        logger.info("📝 Audit service started")
+        logger.info("Audit service started")
 
     async def stop(self):
         """Stop the audit service and flush remaining events"""
@@ -383,7 +383,7 @@ class AuditService:
         except asyncio.CancelledError:
             pass
 
-        logger.info(f"📝 Audit service stopped. Total logged: {self._events_logged}, dropped: {self._events_dropped}")
+        logger.info(f"Audit service stopped. Total logged: {self._events_logged}, dropped: {self._events_dropped}")
 
     async def log(self, event: AuditEvent):
         """
@@ -418,7 +418,7 @@ class AuditService:
             self._write_event_to_db(event)
             self._events_logged += 1
         except Exception as e:
-            logger.error(f"📝 Failed to write audit event: {e}")
+            logger.error(f"Failed to write audit event: {e}")
 
     async def _worker(self):
         """Background worker that processes the event queue"""
@@ -466,9 +466,9 @@ class AuditService:
             self._write_batch_to_db(events_to_write)
             self._events_logged += len(events_to_write)
             self._last_flush = time.time()
-            logger.debug(f"📝 Flushed {len(events_to_write)} audit events")
+            logger.debug(f"Flushed {len(events_to_write)} audit events")
         except Exception as e:
-            logger.error(f"📝 Failed to flush audit events: {e}")
+            logger.error(f"Failed to flush audit events: {e}")
             # Put events back in buffer for retry (with limit)
             async with self._buffer_lock:
                 if len(self._buffer) < self.max_queue_size // 2:

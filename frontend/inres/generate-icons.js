@@ -33,7 +33,7 @@ async function generateIcons() {
 
   await Promise.all(promises);
 
-  console.log('\n✅ All icons generated successfully!');
+  console.log('\n  All icons generated successfully!');
   console.log('\n📋 Verification:');
   console.log('Run: ls -lh public/icon-*.png');
 }

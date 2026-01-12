@@ -22,7 +22,7 @@ def sanitize_error_message(error: Exception, context: str = "") -> str:
     """
     Sanitize error messages to prevent information disclosure.
     """
-    logger.error(f"❌ Error {context}: {type(error).__name__}: {str(error)}", exc_info=True)
+    logger.error(f"Error {context}: {type(error).__name__}: {str(error)}", exc_info=True)
 
     if isinstance(error, (ConnectionError, TimeoutError)):
         return "Service temporarily unavailable. Please try again."
@@ -178,7 +178,7 @@ async def add_installed_plugin(request: Request):
             fetch="one"
         )
 
-        logger.info(f"✅ User {user_id}: Installed plugin '{plugin_name}' from '{marketplace_name}'")
+        logger.info(f"  User {user_id}: Installed plugin '{plugin_name}' from '{marketplace_name}'")
 
         return {"success": True, "plugin": plugin}
 
@@ -217,7 +217,7 @@ async def delete_installed_plugin(plugin_id: str, request: Request):
             fetch="none"
         )
 
-        logger.info(f"✅ User {user_id}: Deleted installed plugin '{plugin_id}'")
+        logger.info(f"  User {user_id}: Deleted installed plugin '{plugin_id}'")
 
         return {"success": True, "message": f"Plugin {plugin_id} deleted successfully"}
 

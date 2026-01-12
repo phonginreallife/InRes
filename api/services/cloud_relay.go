@@ -97,12 +97,12 @@ func (s *CloudRelayService) RegisterWithCloud() error {
 
 	// Log success
 	if instanceID, ok := result["instance_id"].(string); ok && instanceID != "" {
-		fmt.Printf("✅ Public key registered with cloud relay. Instance ID: %s\n", instanceID)
+		fmt.Printf("  Public key registered with cloud relay. Instance ID: %s\n", instanceID)
 	}
 
 	status, _ := result["status"].(string)
 	message, _ := result["message"].(string)
-	fmt.Printf("✅ Cloud relay: %s - %s\n", status, message)
+	fmt.Printf("  Cloud relay: %s - %s\n", status, message)
 
 	return nil
 }

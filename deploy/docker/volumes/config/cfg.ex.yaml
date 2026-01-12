@@ -31,8 +31,10 @@ data_dir: "./data"
 # Internal URL for API→Supabase communication (Docker container name)
 supabase_url: "http://supabase_kong_supabase:8000"
 
-# Public URL for frontend/browser (your server's public IP or domain)
-public_supabase_url: "http://your-server-ip:54321"
+# Public URL for frontend/browser
+# When using HTTPS, route through nginx: https://your-domain.com
+# Nginx will proxy /auth, /rest, /realtime, /storage to Supabase
+public_supabase_url: "https://your-domain.com"
 
 # Public key for frontend Supabase client (required)
 supabase_anon_key: "sb_publishable_..."

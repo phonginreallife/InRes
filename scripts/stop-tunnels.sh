@@ -16,4 +16,4 @@ fi
 # Clean up temp files
 rm -rf /tmp/inres-tunnels 2>/dev/null
 
-echo "✅ Tunnels stopped and cleaned up"
+echo "  Tunnels stopped and cleaned up"

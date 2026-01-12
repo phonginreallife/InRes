@@ -1730,9 +1730,9 @@ func (s *IncidentService) ManualEscalateIncident(incidentID, userID string) (*db
 		go func() {
 			err := s.NotificationWorker.SendIncidentEscalatedNotification(assignedUserID, incidentID)
 			if err != nil {
-				log.Printf("⚠️  Failed to send escalation notification: %v", err)
+				log.Printf("Failed to send escalation notification: %v", err)
 			} else {
-				log.Printf("✅ Sent escalation notification to user %s", assignedUserID)
+				log.Printf("  Sent escalation notification to user %s", assignedUserID)
 			}
 		}()
 	}

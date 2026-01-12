@@ -402,9 +402,9 @@ func (w *IncidentWorker) escalateToUser(incident db.Incident, userID string) boo
 	if success && w.NotificationWorker != nil {
 		// Send escalation notification instead of assignment notification
 		if err := w.NotificationWorker.SendIncidentEscalatedNotification(userID, incident.ID); err != nil {
-			log.Printf("⚠️  Failed to send incident escalation notification: %v", err)
+			log.Printf("Failed to send incident escalation notification: %v", err)
 		} else {
-			log.Printf("✅ Sent incident escalation notification to user %s", userID)
+			log.Printf("  Sent incident escalation notification to user %s", userID)
 		}
 	}
 
@@ -439,15 +439,15 @@ func (w *IncidentWorker) escalateToUserWithNotification(incident db.Incident, us
 	// Send notification to user via PGMQ only if requested
 	if sendNotification && w.NotificationWorker != nil {
 		if err := w.NotificationWorker.SendIncidentAssignedNotification(userID, incident.ID); err != nil {
-			log.Printf("⚠️  Failed to send incident assignment notification: %v", err)
+			log.Printf("Failed to send incident assignment notification: %v", err)
 			// Don't fail the assignment if notification fails
 		} else {
-			log.Printf("✅ Sent incident assignment notification to user %s", userID)
+			log.Printf("  Sent incident assignment notification to user %s", userID)
 		}
 	} else if sendNotification {
-		log.Printf("⚠️  NotificationWorker not available, skipping notification")
+		log.Printf("NotificationWorker not available, skipping notification")
 	} else {
-		log.Printf("📝 Skipping assignment notification (escalation context)")
+		log.Printf("Skipping assignment notification (escalation context)")
 	}
 
 	return true
@@ -489,9 +489,9 @@ func (w *IncidentWorker) escalateToScheduler(incident db.Incident, schedulerID s
 	if success && w.NotificationWorker != nil {
 		// Send escalation notification instead of assignment notification
 		if err := w.NotificationWorker.SendIncidentEscalatedNotification(userID, incident.ID); err != nil {
-			log.Printf("⚠️  Failed to send incident escalation notification: %v", err)
+			log.Printf("Failed to send incident escalation notification: %v", err)
 		} else {
-			log.Printf("✅ Sent incident escalation notification to user %s", userID)
+			log.Printf("  Sent incident escalation notification to user %s", userID)
 		}
 	}
 
@@ -528,9 +528,9 @@ func (w *IncidentWorker) escalateToGroup(incident db.Incident, groupID string) b
 	if success && w.NotificationWorker != nil {
 		// Send escalation notification instead of assignment notification
 		if err := w.NotificationWorker.SendIncidentEscalatedNotification(userID, incident.ID); err != nil {
-			log.Printf("⚠️  Failed to send incident escalation notification: %v", err)
+			log.Printf("Failed to send incident escalation notification: %v", err)
 		} else {
-			log.Printf("✅ Sent incident escalation notification to user %s", userID)
+			log.Printf("  Sent incident escalation notification to user %s", userID)
 		}
 	}
 

@@ -98,10 +98,10 @@ class Config:
 
         for config_path in search_paths:
             if config_path.exists():
-                logger.info(f"✅ Found config file: {config_path}")
+                logger.info(f"  Found config file: {config_path}")
                 return config_path
 
-        logger.warning("⚠️  No config file found, using environment variables only")
+        logger.warning("No config file found, using environment variables only")
         return None
 
     def _load_config(self):
@@ -114,9 +114,9 @@ class Config:
             try:
                 with open(config_file) as f:
                     config_dict = yaml.safe_load(f) or {}
-                    logger.info(f"✅ Loaded config from: {config_file}")
+                    logger.info(f"  Loaded config from: {config_file}")
             except Exception as e:
-                logger.error(f"❌ Failed to load config from {config_file}: {e}")
+                logger.error(f"Failed to load config from {config_file}: {e}")
 
         # Core settings (env var overrides config file)
         self.database_url = os.getenv("DATABASE_URL") or config_dict.get("database_url")
@@ -142,13 +142,13 @@ class Config:
 
     def _log_config(self):
         """Log loaded configuration (without secrets)"""
-        logger.info("📋 Configuration loaded:")
-        logger.info(f"  • Database: {'✅' if self.database_url else '❌'}")
-        logger.info(f"  • Port: {self.port}")
-        logger.info(f"  • Redis: {'✅' if self.redis_url else '❌'}")
-        logger.info(f"  • Supabase: {'✅' if self.supabase_url else '❌'}")
-        logger.info(f"  • Anthropic API: {'✅' if self.anthropic_api_key else '❌'}")
-        logger.info(f"  • AI Analytics: enabled={self.ai_analytics.enabled}, model={self.ai_analytics.model}")
+        logger.info("Configuration loaded:")
+        logger.info(f"  - Database: {'OK' if self.database_url else 'MISSING'}")
+        logger.info(f"  - Port: {self.port}")
+        logger.info(f"  - Redis: {'OK' if self.redis_url else 'MISSING'}")
+        logger.info(f"  - Supabase: {'OK' if self.supabase_url else 'MISSING'}")
+        logger.info(f"  - Anthropic API: {'OK' if self.anthropic_api_key else 'MISSING'}")
+        logger.info(f"  - AI Analytics: enabled={self.ai_analytics.enabled}, model={self.ai_analytics.model}")
 
 
 # Global singleton instance

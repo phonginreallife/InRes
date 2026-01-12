@@ -103,7 +103,7 @@ def sanitize_error_message(error: Exception, context: str = "") -> str:
         Generic error message safe to return to client
     """
     # Log full error details for debugging
-    logger.error(f"❌ Error {context}: {type(error).__name__}: {str(error)}", exc_info=True)
+    logger.error(f"Error {context}: {type(error).__name__}: {str(error)}", exc_info=True)
 
     # Return generic message based on error type
     if isinstance(error, (ConnectionError, TimeoutError)):
@@ -221,7 +221,7 @@ async def lifespan(app: FastAPI):
     Handles startup and shutdown events.
     """
     # Startup
-    logger.info("🚀 Starting application...")
+    logger.info("Starting application...")
 
     # Initialize audit service
     await init_audit_service()
@@ -235,7 +235,7 @@ async def lifespan(app: FastAPI):
     # - heartbeat_task is per-connection (called in websocket endpoint)
     # - marketplace cleanup is now synchronous (no worker needed)
 
-    logger.info("✅ Application started")
+    logger.info("Application started")
 
     yield
 
@@ -250,7 +250,7 @@ async def lifespan(app: FastAPI):
     await shutdown_audit_service()
     logger.info("📝 Audit service stopped")
 
-    logger.info("✅ Application stopped")
+    logger.info("Application stopped")
 
 
 app = FastAPI(
@@ -272,7 +272,7 @@ ALLOWED_ORIGINS = os.getenv(
 # Strip whitespace from origins
 ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
 
-logger.info(f"✅ CORS configured with allowed origins: {ALLOWED_ORIGINS}")
+logger.info(f"CORS configured with allowed origins: {ALLOWED_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -377,7 +377,7 @@ async def message_router(
 
             # Handle pong messages immediately
             if data.get("type") == "pong":
-                logger.debug(f"📡 Received pong at {data.get('timestamp')}")
+                logger.debug(f"Received pong at {data.get('timestamp')}")
                 continue
 
             # Route to appropriate queue based on message type
@@ -431,7 +431,7 @@ async def websocket_sender(websocket: WebSocket, output_queue: asyncio.Queue):
                 await websocket.send_json(message)
                 logger.info(f"📤 Sent to WebSocket: type={message.get('type')}")
             except Exception as e:
-                logger.warning(f"⚠️ Failed to send message (WebSocket closed?): {e}")
+                logger.warning(f"Failed to send message (WebSocket closed?): {e}")
                 # Don't crash - message lost but agent continues
                 # Could implement retry or persistent queue here
 
@@ -567,7 +567,7 @@ async def agent_task_streaming(
                 # Reset interrupted flag when new message arrives
                 # This allows processing to resume after an interrupt
                 if interrupted:
-                    logger.info("🔄 New message after interrupt, resetting interrupted flag")
+                    logger.info("New message after interrupt, resetting interrupted flag")
                     interrupted = False
                     # Signal that new message is ready for processing
                     new_message_ready.set()
@@ -605,7 +605,7 @@ async def agent_task_streaming(
 
                 prompt = data.get("prompt", "")
                 if not prompt:
-                    logger.warning("⚠️ Empty prompt received, skipping")
+                    logger.warning("Empty prompt received, skipping")
                     continue
 
                 # Store first prompt (for new conversation)
@@ -671,12 +671,12 @@ async def agent_task_streaming(
             try:
                 # If still interrupted (didn't see ResultMessage in drain loop), mark for wait
                 if interrupted and not was_interrupted:
-                    logger.info("⏸️ Still interrupted, marking for wait")
+                    logger.info("Still interrupted, marking for wait")
                     was_interrupted = True
 
                 # If we need to wait for new message after interrupt
                 if was_interrupted:
-                    logger.info("⏸️ Response loop: checking for new message after interrupt...")
+                    logger.info("Response loop: checking for new message after interrupt...")
 
                     # Wait for signal if not already set, OR if interrupted flag still True
                     wait_needed = not new_message_ready.is_set() or interrupted
@@ -685,10 +685,10 @@ async def agent_task_streaming(
                         try:
                             await asyncio.wait_for(new_message_ready.wait(), timeout=60.0)
                         except asyncio.TimeoutError:
-                            logger.warning("⚠️ Response loop: timeout waiting for new message")
+                            logger.warning("Response loop: timeout waiting for new message")
                             continue
 
-                    logger.info("✅ Response loop: new message ready, resuming")
+                    logger.info("  Response loop: new message ready, resuming")
                     # Clear the event for next interrupt cycle
                     new_message_ready.clear()
                     # Give SDK time to process the new message
@@ -731,7 +731,7 @@ async def agent_task_streaming(
                                     "is_error": block.is_error,
                                 })
                             elif isinstance(block, ToolUseBlock):
-                                logger.info(f"🔧 Tool: {block.name}({block.id})")
+                                logger.info(f"Tool: {block.name}({block.id})")
                                 if block.name == "TodoWrite":
                                     try:
                                         todos = block.input.get("todos", [])
@@ -740,7 +740,7 @@ async def agent_task_streaming(
                                             "todos": todos
                                         })
                                     except Exception as e:
-                                        logger.error(f"❌ TodoWrite error: {e}")
+                                        logger.error(f"TodoWrite error: {e}")
 
                     elif isinstance(message, UserMessage):
                         for block in message.content:
@@ -812,7 +812,7 @@ async def agent_task_streaming(
 
                         # Send complete signal to frontend (one turn done)
                         await output_queue.put({"type": "complete"})
-                        logger.info("✅ Turn complete, waiting for next message...")
+                        logger.info("  Turn complete, waiting for next message...")
 
                         # Reset buffers for next turn
                         assistant_text_buffer = []
@@ -826,7 +826,7 @@ async def agent_task_streaming(
                 logger.info("🛑 Response processor cancelled")
                 break
             except Exception as e:
-                logger.error(f"❌ Response processor error: {e}", exc_info=True)
+                logger.error(f"Response processor error: {e}", exc_info=True)
                 # Don't break on error, try to continue
                 await asyncio.sleep(0.5)
 
@@ -850,9 +850,9 @@ async def agent_task_streaming(
                     if client_ref["client"]:
                         try:
                             await client_ref["client"].interrupt()
-                            logger.info("✅ SDK interrupt called")
+                            logger.info("  SDK interrupt called")
                         except Exception as e:
-                            logger.error(f"❌ SDK interrupt error: {e}")
+                            logger.error(f"SDK interrupt error: {e}")
 
                     await output_queue.put({
                         "type": "interrupted",
@@ -864,7 +864,7 @@ async def agent_task_streaming(
             except asyncio.CancelledError:
                 return
             except Exception as e:
-                logger.error(f"❌ Interrupt monitor error: {e}")
+                logger.error(f"Interrupt monitor error: {e}")
 
     try:
         # Wait for first message to initialize context
@@ -991,7 +991,7 @@ async def agent_task_streaming(
                 yield msg
 
         # TRUE STREAMING MODE: ONE client, ONE query() call with generator
-        logger.info("🚀 Starting TRUE streaming mode...")
+        logger.info("Starting TRUE streaming mode...")
         async with ClaudeSDKClient(options) as client:
             client_ref["client"] = client
 
@@ -1022,7 +1022,7 @@ async def agent_task_streaming(
                 except asyncio.CancelledError:
                     logger.info("🛑 Query task cancelled")
                 except Exception as e:
-                    logger.error(f"❌ Query task error: {e}", exc_info=True)
+                    logger.error(f"Query task error: {e}", exc_info=True)
 
                 # Now wait for any remaining responses
                 if not response_task.done():
@@ -1035,7 +1035,7 @@ async def agent_task_streaming(
                     except asyncio.CancelledError:
                         pass
                     except Exception as e:
-                        logger.error(f"❌ Response task error: {e}")
+                        logger.error(f"Response task error: {e}")
 
             finally:
                 # Cleanup
@@ -1046,13 +1046,13 @@ async def agent_task_streaming(
                     except asyncio.CancelledError:
                         pass
 
-        logger.info("✅ Streaming session ended")
+        logger.info("  Streaming session ended")
 
     except asyncio.CancelledError:
         logger.info("🤖 Streaming agent: cancelled")
         raise
     except Exception as e:
-        logger.error(f"❌ Streaming agent error: {e}", exc_info=True)
+        logger.error(f"Streaming agent error: {e}", exc_info=True)
         try:
             await output_queue.put({
                 "type": "error",
@@ -1228,7 +1228,7 @@ async def agent_task(
                 if user_plugins:
                     logger.info(f"📦 Loaded {len(user_plugins)} user plugins")
                 else:
-                    logger.debug(f"ℹ️  No plugins installed for user {user_id}")
+                    logger.debug(f"No plugins installed for user {user_id}")
 
             # Load allowed tools
             allowed_tools = [
@@ -1241,7 +1241,7 @@ async def agent_task(
                 user_allowed = await get_user_allowed_tools(user_id)
                 if user_allowed:
                     allowed_tools.extend(user_allowed)
-                    logger.info(f"✅ Loaded {len(user_allowed)} allowed tools from DB")
+                    logger.info(f"  Loaded {len(user_allowed)} allowed tools from DB")
 
             # Use conversation_id for Claude resume (NOT session_id!)
             # - session_id: WebSocket/Zero-Trust session (for security, stop events)
@@ -1314,9 +1314,9 @@ async def agent_task(
                                     await output_queue.put(
                                         {"type": "interrupted", "session_id": session_id}
                                     )
-                                    logger.info("✅ Agent interrupted by monitor")
+                                    logger.info("  Agent interrupted by monitor")
                                 except Exception as e:
-                                    logger.error(f"❌ Error in interrupt monitor: {e}", exc_info=True)
+                                    logger.error(f"Error in interrupt monitor: {e}", exc_info=True)
                                 return
                         except asyncio.TimeoutError:
                             # Timeout is expected - continue polling
@@ -1363,7 +1363,7 @@ async def agent_task(
                                 elif isinstance(block, ToolUseBlock):
                                     # Don't send tool_use to frontend - permission_request already shows tool info
                                     # This avoids duplicate display of the same tool call
-                                    logger.info(f"🔧 Tool use: {block.name}({block.id})")
+                                    logger.info(f"Tool use: {block.name}({block.id})")
 
                                     # Special handling for TodoWrite - send todo_update event
                                     if block.name == "TodoWrite":
@@ -1375,7 +1375,7 @@ async def agent_task(
                                                 "todos": todos
                                             })
                                         except Exception as e:
-                                            logger.error(f"❌ Error processing TodoWrite: {e}", exc_info=True)
+                                            logger.error(f"Error processing TodoWrite: {e}", exc_info=True)
 
                         # Handle UserMessage (tool results from SDK)
                         # Send to frontend so users can see what agent is executing
@@ -1436,7 +1436,7 @@ async def agent_task(
                                                 message_type="text"
                                             )
                                             user_message_saved = True
-                                            logger.info(f"💾 Saved user message for conversation {claude_session_id}")
+                                            logger.info(f"Saved user message for conversation {claude_session_id}")
 
                                     # Send to client so they can save for resume
                                     # Client should save conversation_id and send it back in next messages
@@ -1460,11 +1460,11 @@ async def agent_task(
                                     content=assistant_content,
                                     message_type="text"
                                 )
-                                logger.info(f"💾 Saved assistant message ({len(assistant_content)} chars) for conversation {current_conversation_id}")
+                                logger.info(f"Saved assistant message ({len(assistant_content)} chars) for conversation {current_conversation_id}")
 
                     # Send complete signal to frontend (resets isSending state)
                     await output_queue.put({"type": "complete"})
-                    logger.info("✅ Response complete")
+                    logger.info("  Response complete")
 
                 finally:
                     # Cancel interrupt monitor when receive loop finishes
@@ -1477,7 +1477,7 @@ async def agent_task(
                     logger.info("🧹 Interrupt monitor stopped")
 
             # Log when async with block exits - this is where loop should continue
-            logger.info("🔄 Claude client closed, ready for next message")
+            logger.info("Claude client closed, ready for next message")
 
     except asyncio.CancelledError:
         logger.info("🤖 Agent task: Cancelled")
@@ -1517,11 +1517,11 @@ async def marketplace_cleanup_worker():
     import psycopg2.extras
     from routes_marketplace import cleanup_marketplace_task
 
-    logger.info("🚀 Marketplace cleanup worker started")
+    logger.info("Marketplace cleanup worker started")
 
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        logger.error("❌ DATABASE_URL not configured, worker cannot start")
+        logger.error("DATABASE_URL not configured, worker cannot start")
         return
 
     # Create connection pool for efficiency
@@ -1532,7 +1532,7 @@ async def marketplace_cleanup_worker():
             # Reconnect if needed
             if conn is None or conn.closed:
                 conn = psycopg2.connect(db_url)
-                logger.info("✅ Connected to PostgreSQL for PGMQ worker")
+                logger.info("  Connected to PostgreSQL for PGMQ worker")
 
             # Read message from PGMQ
             # pgmq.read(queue_name => TEXT, vt => INTEGER, qty => INTEGER)
@@ -1584,7 +1584,7 @@ async def marketplace_cleanup_worker():
                     conn.commit()
 
                 logger.info(
-                    f"✅ Cleanup task completed and archived (msg_id: {msg_id})"
+                    f"  Cleanup task completed and archived (msg_id: {msg_id})"
                 )
             else:
                 # Let message become visible again for retry
@@ -1594,7 +1594,7 @@ async def marketplace_cleanup_worker():
                 )
 
         except Exception as e:
-            logger.error(f"❌ Worker error: {e}", exc_info=True)
+            logger.error(f"Worker error: {e}", exc_info=True)
             # Close connection on error to force reconnect
             if conn:
                 try:
@@ -1616,21 +1616,21 @@ async def verify_websocket_auth(websocket: WebSocket) -> tuple[bool, str]:
     token = websocket.query_params.get("token")
 
     if not token:
-        logger.warning("⚠️  WebSocket connection attempt without token")
+        logger.warning("WebSocket connection attempt without token")
         return False, "Missing authentication token"
 
     try:
         # Verify JWT token
         user_id = extract_user_id_from_token(token)
         if not user_id:
-            logger.warning("⚠️  WebSocket connection attempt with invalid token")
+            logger.warning("WebSocket connection attempt with invalid token")
             return False, "Invalid authentication token"
 
-        logger.info(f"✅ WebSocket authenticated for user: {user_id}")
+        logger.info(f"  WebSocket authenticated for user: {user_id}")
         return True, user_id
 
     except Exception as e:
-        logger.error(f"❌ WebSocket auth error: {e}")
+        logger.error(f"WebSocket auth error: {e}")
         return False, "Authentication failed"
 
 
@@ -1643,7 +1643,7 @@ async def websocket_chat(websocket: WebSocket):
     # These are passed from frontend when connecting WebSocket
     ws_org_id = websocket.query_params.get("org_id") or None
     ws_project_id = websocket.query_params.get("project_id") or None
-    logger.info(f"📋 WebSocket query params - org_id: {ws_org_id}, project_id: {ws_project_id}")
+    logger.info(f"WebSocket query params - org_id: {ws_org_id}, project_id: {ws_project_id}")
 
     # Authenticate BEFORE accepting connection (prevents DoS)
     is_valid, result = await verify_websocket_auth(websocket)
@@ -1667,7 +1667,7 @@ async def websocket_chat(websocket: WebSocket):
     authenticated_user_id = result
     ws_auth_token = websocket.query_params.get("token") or ""
     ws_session_id = str(uuid.uuid4())  # Generate unique session ID for this WebSocket
-    logger.info(f"📡 WebSocket accepted for user: {authenticated_user_id}")
+    logger.info(f"WebSocket accepted for user: {authenticated_user_id}")
 
     # Send session_id to client IMMEDIATELY so they can use it for interrupts
     # This is separate from Claude's conversation_id which comes later
@@ -1728,7 +1728,7 @@ async def websocket_chat(websocket: WebSocket):
                 }
             )
 
-            logger.info(f"\n🔧 Tool Permission Request: {tool_name}")
+            logger.info(f"\nTool Permission Request: {tool_name}")
             logger.debug(f"   Input: {json.dumps(input_data, indent=2)}")
 
             # Generate unique request ID
@@ -1779,7 +1779,7 @@ async def websocket_chat(websocket: WebSocket):
 
                 # Process response
                 if response.get("allow") in ("y", "yes"):
-                    logger.info("✅ Tool approved by user")
+                    logger.info("  Tool approved by user")
                     # Audit log: tool approved
                     await audit.log_tool_approved(
                         user_id=authenticated_user_id,
@@ -1789,7 +1789,7 @@ async def websocket_chat(websocket: WebSocket):
                     )
                     return PermissionResultAllow()
                 else:
-                    logger.info("❌ Tool denied by user")
+                    logger.info("Tool denied by user")
                     # Audit log: tool denied
                     await audit.log_tool_denied(
                         user_id=authenticated_user_id,
@@ -1883,7 +1883,7 @@ async def websocket_chat(websocket: WebSocket):
                 )
 
                 if pending:
-                    logger.warning(f"⚠️ {len(pending)} tasks did not finish within timeout, force cancelling")
+                    logger.warning(f"{len(pending)} tasks did not finish within timeout, force cancelling")
                     for task in pending:
                         logger.warning(f"   - {task.get_name()} still pending")
                         # Force cancel again
@@ -1930,7 +1930,7 @@ async def websocket_secure_chat(websocket: WebSocket):
     # Extract org_id and project_id from query params for audit logging
     ws_org_id = websocket.query_params.get("org_id") or None
     ws_project_id = websocket.query_params.get("project_id") or None
-    logger.info(f"📋 Secure WebSocket query params - org_id: {ws_org_id}, project_id: {ws_project_id}")
+    logger.info(f"Secure WebSocket query params - org_id: {ws_org_id}, project_id: {ws_project_id}")
     session = None
     session_id = None
 
@@ -1950,7 +1950,7 @@ async def websocket_secure_chat(websocket: WebSocket):
 
     try:
         # Wait for authentication message
-        logger.info("🔐 Waiting for Zero-Trust authentication...")
+        logger.info("Waiting for Zero-Trust authentication...")
         auth_data = await asyncio.wait_for(
             websocket.receive_json(),
             timeout=30.0  # 30 second auth timeout
@@ -2014,7 +2014,7 @@ async def websocket_secure_chat(websocket: WebSocket):
             return
 
         session_id = session.session_id
-        logger.info(f"✅ Zero-Trust authenticated: user={session.user_id}, session={session_id}")
+        logger.info(f"  Zero-Trust authenticated: user={session.user_id}, session={session_id}")
 
         # Log successful authentication with org_id/project_id from URL
         await audit.log_session_authenticated(
@@ -2099,12 +2099,12 @@ async def websocket_secure_chat(websocket: WebSocket):
                         # If not provided, will start new conversation
                         await agent_queue.put(data)
                     else:
-                        logger.warning(f"⚠️ Unknown message type: {msg_type}")
+                        logger.warning(f"Unknown message type: {msg_type}")
 
             except WebSocketDisconnect:
                 logger.info("🔌 Secure message router: WebSocket disconnected")
             except Exception as e:
-                logger.error(f"❌ Secure message router error: {e}", exc_info=True)
+                logger.error(f"Secure message router error: {e}", exc_info=True)
             finally:
                 await agent_queue.put(None)
                 await interrupt_queue.put(None)
@@ -2210,7 +2210,7 @@ async def websocket_secure_chat(websocket: WebSocket):
     except WebSocketDisconnect:
         logger.info("🔌 Secure WebSocket disconnected")
     except Exception as e:
-        logger.error(f"❌ Secure WebSocket error: {e}", exc_info=True)
+        logger.error(f"Secure WebSocket error: {e}", exc_info=True)
         try:
             await websocket.send_json({
                 "type": "error",
@@ -2228,7 +2228,7 @@ async def websocket_secure_chat(websocket: WebSocket):
         # 
         # For explicit logout, mobile should call a separate revoke endpoint
         if session_id:
-            logger.info(f"🔐 Session {session_id} kept for potential reconnection")
+            logger.info(f"Session {session_id} kept for potential reconnection")
 
         # Cleanup tasks
         try:
@@ -2255,9 +2255,9 @@ if __name__ == "__main__":
     backend_url = os.getenv("inres_BACKEND_URL", "")
     if backend_url:
         init_verifier(backend_url)
-        logger.info(f"✅ Zero-Trust verifier initialized with backend: {backend_url}")
+        logger.info(f"  Zero-Trust verifier initialized with backend: {backend_url}")
     else:
-        logger.warning("⚠️ inres_BACKEND_URL not set, Zero-Trust features limited")
+        logger.warning("inres_BACKEND_URL not set, Zero-Trust features limited")
 
     # Disable auto-reload in production to prevent sync issues
     # Auto-reload can cause server restarts during file operations (like sync)

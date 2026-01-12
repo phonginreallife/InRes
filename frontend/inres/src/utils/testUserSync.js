@@ -19,7 +19,7 @@ export async function testUserAutoSync() {
       return false;
     }
     
-    console.log('✅ Valid session found:', {
+    console.log('  Valid session found:', {
       user_id: session.user.id,
       email: session.user.email,
       user_metadata: session.user.user_metadata
@@ -32,7 +32,7 @@ export async function testUserAutoSync() {
     
     // This call will trigger the auto-sync mechanism
     const users = await apiClient.getUsers();
-    console.log('✅ API call successful. Users found:', users.length);
+    console.log('  API call successful. Users found:', users.length);
     
     // Step 3: Verify current user exists in backend
     const currentUserId = `oauth-google-${session.user.id}`; // Adjust based on provider
@@ -40,7 +40,7 @@ export async function testUserAutoSync() {
     
     try {
       const currentUser = await apiClient.getUser(currentUserId);
-      console.log('✅ User successfully synced to backend:', currentUser);
+      console.log('  User successfully synced to backend:', currentUser);
       
       // Step 4: Test group functionality (requires synced user)
       console.log('🔄 Testing group creation with synced user...');
@@ -53,7 +53,7 @@ export async function testUserAutoSync() {
         escalation_method: 'parallel'
       });
       
-      console.log('✅ Group created successfully:', testGroup.group);
+      console.log('  Group created successfully:', testGroup.group);
       
       // Step 5: Test adding user to group
       console.log('🔄 Testing adding synced user to group...');
@@ -69,7 +69,7 @@ export async function testUserAutoSync() {
         }
       });
       
-      console.log('✅ User added to group successfully:', member.member);
+      console.log('  User added to group successfully:', member.member);
       
       // Cleanup: Delete test group
       await apiClient.deleteGroup(testGroup.group.id);
@@ -107,7 +107,7 @@ export async function testSignupAndSync(email, password, metadata = {}) {
       return false;
     }
     
-    console.log('✅ User created in Supabase:', data.user.id);
+    console.log('  User created in Supabase:', data.user.id);
     
     // Step 2: Wait for email confirmation (in real app)
     console.log('📧 Check email for confirmation link...');
@@ -122,7 +122,7 @@ export async function testSignupAndSync(email, password, metadata = {}) {
       // This should trigger auto-sync
       await apiClient.getUsers();
       
-      console.log('✅ Auto-sync triggered successfully');
+      console.log('  Auto-sync triggered successfully');
     }
     
     return true;

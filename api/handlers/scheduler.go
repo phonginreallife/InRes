@@ -32,24 +32,24 @@ func NewSchedulerHandler(schedulerService *services.SchedulerService, onCallServ
 // GET /groups/{id}/scheduler-timelines
 func (h *SchedulerHandler) GetGroupSchedulerTimelines(c *gin.Context) {
 	groupID := c.Param("id")
-	fmt.Printf("🚀 [API] GET /groups/%s/scheduler-timelines called\n", groupID)
+	fmt.Printf("[API] GET /groups/%s/scheduler-timelines called\n", groupID)
 
 	if groupID == "" {
-		fmt.Printf("❌ [API] Missing group ID\n")
+		fmt.Printf("[API] Missing group ID\n")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Group ID is required"})
 		return
 	}
 
-	fmt.Printf("🔍 [API] Calling SchedulerService.GetGroupSchedulerTimelines...\n")
+	fmt.Printf("[API] Calling SchedulerService.GetGroupSchedulerTimelines...\n")
 	// Get scheduler timelines
 	timelines, err := h.SchedulerService.GetGroupSchedulerTimelines(groupID)
 	if err != nil {
-		fmt.Printf("❌ [API] Error from service: %v\n", err)
+		fmt.Printf("[API] Error from service: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get scheduler timelines: " + err.Error()})
 		return
 	}
 
-	fmt.Printf("✅ [API] Successfully got %d timelines, returning response\n", len(timelines))
+	fmt.Printf("  [API] Successfully got %d timelines, returning response\n", len(timelines))
 	c.JSON(http.StatusOK, gin.H{
 		"timelines": timelines,
 		"count":     len(timelines),
@@ -193,7 +193,7 @@ func (h *SchedulerHandler) CreateGroupSchedule(c *gin.Context) {
 	if !exists {
 		// DEBUG: Temporarily use a fake user ID for testing
 		userID = "debug-user-id"
-		log.Println("🔧 DEBUG: Using fake user ID for testing")
+		log.Println("DEBUG: Using fake user ID for testing")
 	}
 
 	// Get or create default scheduler if SchedulerID is not provided
@@ -460,7 +460,7 @@ func (h *SchedulerHandler) DeleteScheduler(c *gin.Context) {
 	groupID := c.Param("id")
 	schedulerID := c.Param("scheduler_id")
 
-	log.Printf("🗑️ DeleteScheduler called - GroupID: %s, SchedulerID: %s", groupID, schedulerID)
+	log.Printf("DeleteScheduler called - GroupID: %s, SchedulerID: %s", groupID, schedulerID)
 
 	if groupID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Group ID is required"})
@@ -581,10 +581,10 @@ func (h *SchedulerHandler) CreateSchedulerWithShiftsOptimized(c *gin.Context) {
 	)
 
 	if err != nil {
-		log.Printf("❌ Optimized scheduler creation failed: %v", err)
+		log.Printf("Optimized scheduler creation failed: %v", err)
 
 		// Fallback to original service
-		log.Println("🔄 Falling back to original scheduler service...")
+		log.Println("Falling back to original scheduler service...")
 		scheduler, shifts, err = h.SchedulerService.CreateSchedulerWithShifts(
 			groupID,
 			req.Scheduler,
@@ -640,7 +640,7 @@ func (h *SchedulerHandler) UpdateSchedulerWithShifts(c *gin.Context) {
 	groupID := c.Param("id")
 	schedulerID := c.Param("scheduler_id")
 
-	log.Printf("🔄 UpdateSchedulerWithShifts called - GroupID: %s, SchedulerID: %s", groupID, schedulerID)
+	log.Printf("UpdateSchedulerWithShifts called - GroupID: %s, SchedulerID: %s", groupID, schedulerID)
 
 	if groupID == "" || schedulerID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Group ID and Scheduler ID are required"})
@@ -684,7 +684,7 @@ func (h *SchedulerHandler) UpdateSchedulerWithShifts(c *gin.Context) {
 	)
 
 	if err != nil {
-		log.Printf("⚠️  Optimized update failed, falling back to original service: %v", err)
+		log.Printf("Optimized update failed, falling back to original service: %v", err)
 
 		// Fallback to original service
 		scheduler, shifts, err = h.SchedulerService.UpdateSchedulerWithShifts(
@@ -705,7 +705,7 @@ func (h *SchedulerHandler) UpdateSchedulerWithShifts(c *gin.Context) {
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("✅ Scheduler %s updated successfully with %d shifts in %v", schedulerID, len(shifts), duration)
+	log.Printf("  Scheduler %s updated successfully with %d shifts in %v", schedulerID, len(shifts), duration)
 
 	c.JSON(http.StatusOK, gin.H{
 		"scheduler": scheduler,

@@ -154,7 +154,7 @@ func (s *AlertManagerService) handleFiringAlert(alert *db.Alert, _ *models.Alert
 
 		return err
 	} else {
-		log.Printf("⏭️ Alert already active (status: %s), skipping", existingAlert.Status)
+		log.Printf("Alert already active (status: %s), skipping", existingAlert.Status)
 	}
 
 	return nil
@@ -181,7 +181,7 @@ func (s *AlertManagerService) handleResolvedAlert(alert *db.Alert, _ *models.Ale
 		// B) Create it for audit trail (comprehensive approach)
 
 		// Option A: Skip resolved alerts that never fired (recommended)
-		log.Printf("⚠️ Skipping resolved alert that was never fired: %s (duration was too brief to require attention)", alert.Title)
+		log.Printf("Skipping resolved alert that was never fired: %s (duration was too brief to require attention)", alert.Title)
 		return nil
 
 		// Option B: Create for audit trail (uncomment if needed)
@@ -196,12 +196,12 @@ func (s *AlertManagerService) handleResolvedAlert(alert *db.Alert, _ *models.Ale
 
 	// Update existing alert to closed
 	if existingAlert.Status != "closed" {
-		log.Printf("🔄 Updating existing alert to closed: %s", alert.ID)
+		log.Printf("Updating existing alert to closed: %s", alert.ID)
 		// Use AlertService method to close alert properly
 		err = s.AlertService.CloseAlert(alert.ID)
 		return err
 	} else {
-		log.Printf("⏭️ Alert already closed, skipping: %s", alert.ID)
+		log.Printf("Alert already closed, skipping: %s", alert.ID)
 	}
 
 	return nil

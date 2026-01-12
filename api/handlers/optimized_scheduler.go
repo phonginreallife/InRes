@@ -74,10 +74,10 @@ func (h *OptimizedSchedulerHandler) CreateSchedulerWithShiftsOptimized(c *gin.Co
 	)
 
 	if err != nil {
-		log.Printf("❌ Optimized scheduler creation failed: %v", err)
+		log.Printf("Optimized scheduler creation failed: %v", err)
 
 		// Fallback to original service
-		log.Println("🔄 Falling back to original scheduler service...")
+		log.Println("Falling back to original scheduler service...")
 		scheduler, shifts, err = h.SchedulerService.CreateSchedulerWithShifts(
 			groupID,
 			req.Scheduler,

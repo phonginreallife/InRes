@@ -126,7 +126,7 @@ const analyzeGaps = (shifts, label) => {
     if (gapHours > 0) {
       console.log(`  ⚠️  GAP: ${gapHours} hours between ${currentMember.user_name} and ${nextMember.user_name}`);
     } else if (gapHours === 0) {
-      console.log(`  ✅ Perfect handoff: ${currentMember.user_name} → ${nextMember.user_name}`);
+      console.log(`    Perfect handoff: ${currentMember.user_name} → ${nextMember.user_name}`);
     } else {
       console.log(`  ⚠️  OVERLAP: ${Math.abs(gapHours)} hours between ${currentMember.user_name} and ${nextMember.user_name}`);
     }

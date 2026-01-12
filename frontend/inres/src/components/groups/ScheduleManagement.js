@@ -282,7 +282,7 @@ export default function ScheduleManagement({ groupId, members }) {
 
       // Create override using API client
       const result = await apiClient.createOverride(groupId, overrideRequest, rebacFilters);
-      console.log('✅ Override created:', result);
+      console.log('  Override created:', result);
 
       // Refresh schedules to show the override
       await fetchSchedules();
@@ -318,7 +318,7 @@ export default function ScheduleManagement({ groupId, members }) {
 
           // Delete override using API client
           await apiClient.deleteOverride(groupId, overrideId, rebacFilters);
-          console.log('✅ Override removed:', overrideId);
+          console.log('  Override removed:', overrideId);
 
           // Refresh schedules to show the change
           await fetchSchedules();

@@ -121,7 +121,7 @@ export default function CreateIncidentModal({
           ...(currentProject?.id && { project_id: currentProject.id })
         };
         const groupPolicies = await apiClient.getGroupEscalationPolicies(formData.group_id, rebacFilters);
-        console.log(`✅ Group ${formData.group_id} policies response:`, groupPolicies);
+        console.log(`  Group ${formData.group_id} policies response:`, groupPolicies);
         
         // Check if response has the expected structure
         if (!groupPolicies) {

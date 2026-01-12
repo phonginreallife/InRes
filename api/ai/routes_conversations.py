@@ -27,7 +27,7 @@ def sanitize_error_message(error: Exception, context: str = "") -> str:
     """
     Sanitize error messages to prevent information disclosure.
     """
-    logger.error(f"❌ Error {context}: {type(error).__name__}: {str(error)}", exc_info=True)
+    logger.error(f"Error {context}: {type(error).__name__}: {str(error)}", exc_info=True)
 
     if isinstance(error, (ConnectionError, TimeoutError)):
         return "Service temporarily unavailable. Please try again."
@@ -98,11 +98,11 @@ async def save_conversation(
             fetch="none"
         )
 
-        logger.info(f"💾 Saved conversation {conversation_id} for user {user_id}")
+        logger.info(f"Saved conversation {conversation_id} for user {user_id}")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Failed to save conversation: {e}", exc_info=True)
+        logger.error(f"Failed to save conversation: {e}", exc_info=True)
         return False
 
 
@@ -122,7 +122,7 @@ async def update_conversation_activity(conversation_id: str) -> bool:
         )
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to update conversation activity: {e}", exc_info=True)
+        logger.error(f"Failed to update conversation activity: {e}", exc_info=True)
         return False
 
 
@@ -170,7 +170,7 @@ async def save_message(
         )
         return True
     except Exception as e:
-        logger.error(f"❌ Failed to save message: {e}", exc_info=True)
+        logger.error(f"Failed to save message: {e}", exc_info=True)
         return False
 
 
@@ -199,7 +199,7 @@ def get_conversation_messages(conversation_id: str, limit: int = 100) -> list:
         )
         return messages or []
     except Exception as e:
-        logger.error(f"❌ Failed to get messages: {e}", exc_info=True)
+        logger.error(f"Failed to get messages: {e}", exc_info=True)
         return []
 
 
@@ -513,7 +513,7 @@ async def delete_conversation(conversation_id: str, request: Request):
             fetch="none"
         )
 
-        logger.info(f"🗑️ Deleted conversation {conversation_id} for user {user_id}")
+        logger.info(f"Deleted conversation {conversation_id} for user {user_id}")
 
         return {"success": True, "message": "Conversation deleted"}
 

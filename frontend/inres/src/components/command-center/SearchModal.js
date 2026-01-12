@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 const QUICK_ACTIONS = [
   { id: 'new-incident', label: 'Create new incident', icon: '🔥', action: '/incidents/new' },
   { id: 'ai-agent', label: 'Open AI Assistant', icon: '🤖', action: '/ai-agent' },
-  { id: 'view-services', label: 'View all services', icon: '✅', action: '/monitors' },
+  { id: 'view-services', label: 'View all services', icon: ' ', action: '/monitors' },
   { id: 'manage-teams', label: 'Manage teams', icon: '👥', action: '/groups' },
   { id: 'settings', label: 'Settings', icon: '⚙️', action: '/profile' },
 ];
@@ -141,7 +141,7 @@ export default function SearchModal({ isOpen, onClose }) {
                       }`}
                     >
                       <span className="text-lg">
-                        {item.type === 'incident' ? '🔥' : '✅'}
+                        {item.type === 'incident' ? '🔥' : ' '}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{item.label}</p>

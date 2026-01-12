@@ -433,7 +433,7 @@ export async function downloadEntireMarketplace(owner, repo, branch = 'main', au
       throw new Error(data.error || 'Failed to clone repository');
     }
 
-    console.log(`[marketplaceGithub] ✅ ${data.message} (commit: ${data.commit_sha?.slice(0, 8)})`);
+    console.log(`[marketplaceGithub]   ${data.message} (commit: ${data.commit_sha?.slice(0, 8)})`);
 
     if (onProgress) {
       onProgress({
@@ -515,7 +515,7 @@ export async function updateMarketplace(marketplaceName, authToken, onProgress) 
       });
     }
 
-    console.log(`[marketplaceGithub] ✅ ${data.message}`);
+    console.log(`[marketplaceGithub]   ${data.message}`);
 
     return {
       success: true,
@@ -646,7 +646,7 @@ export async function fetchMarketplaceMetadata(owner, repo, branch = 'main', aut
       return { success: false, error: result.error };
     }
 
-    console.log('[marketplaceGithub] ✅ Metadata fetched successfully:', result.marketplace.name);
+    console.log('[marketplaceGithub]   Metadata fetched successfully:', result.marketplace.name);
     console.log('[marketplaceGithub]    Plugins:', result.marketplace.plugins?.length || 0);
 
     return {
@@ -711,7 +711,7 @@ export async function installPluginFromMarketplace(
       return { success: false, error: result.error };
     }
 
-    console.log('[marketplaceGithub] ✅ Plugin installed successfully (instant!)');
+    console.log('[marketplaceGithub]   Plugin installed successfully (instant!)');
 
     return {
       success: true,

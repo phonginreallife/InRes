@@ -423,9 +423,9 @@ func (s *OnCallService) checkOverlappingSchedules(groupID string, startTime, end
 	}
 
 	// Debug logging
-	log.Printf("🔍 Checking overlaps: groupID=%s, startTime=%v, endTime=%v, excludeID=%s", groupID, startTime, endTime, excludeID)
-	log.Printf("🔍 Query: %s", query)
-	log.Printf("🔍 Args: %v", args)
+	log.Printf("Checking overlaps: groupID=%s, startTime=%v, endTime=%v, excludeID=%s", groupID, startTime, endTime, excludeID)
+	log.Printf("Query: %s", query)
+	log.Printf("Args: %v", args)
 
 	rows, err := s.PG.Query(query, args...)
 	if err != nil {
@@ -448,9 +448,9 @@ func (s *OnCallService) checkOverlappingSchedules(groupID string, startTime, end
 	}
 
 	// Debug logging for results
-	log.Printf("🔍 Found %d overlapping schedules", len(schedules))
+	log.Printf("Found %d overlapping schedules", len(schedules))
 	for i, schedule := range schedules {
-		log.Printf("🔍 Overlap %d: ID=%s, StartTime=%v, EndTime=%v", i+1, schedule.ID, schedule.StartTime, schedule.EndTime)
+		log.Printf("Overlap %d: ID=%s, StartTime=%v, EndTime=%v", i+1, schedule.ID, schedule.StartTime, schedule.EndTime)
 	}
 
 	return schedules, nil

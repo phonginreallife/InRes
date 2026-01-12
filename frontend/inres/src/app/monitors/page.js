@@ -473,7 +473,7 @@ function MonitorCard({ monitor, onUpdate, onEdit, workerUrl }) {
         try {
             setLoading(true);
             
-            // ✅ Use Worker API if available (fast, CDN cached)
+            //   Use Worker API if available (fast, CDN cached)
             if (workerUrl) {
                 try {
                     const data = await apiClient.getWorkerMonitorStats(workerUrl, monitor.id);

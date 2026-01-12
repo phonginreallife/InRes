@@ -49,27 +49,27 @@ class MCPConfigCache:
             logger.debug(f"Cache expired for user: {user_id}")
             return None
 
-        logger.debug(f"✅ Cache hit for user: {user_id}")
+        logger.debug(f"  Cache hit for user: {user_id}")
         return self._cache[user_id]
 
     def set(self, user_id: str, config: Dict[str, Any]):
         """Store config in cache."""
         self._cache[user_id] = config
         self._timestamps[user_id] = datetime.now()
-        logger.debug(f"💾 Cached config for user: {user_id}")
+        logger.debug(f"Cached config for user: {user_id}")
 
     def invalidate(self, user_id: str):
         """Invalidate cache for user."""
         if user_id in self._cache:
             del self._cache[user_id]
             del self._timestamps[user_id]
-            logger.info(f"🗑️  Cache invalidated for user: {user_id}")
+            logger.info(f"Cache invalidated for user: {user_id}")
 
     def clear(self):
         """Clear all cache."""
         self._cache.clear()
         self._timestamps.clear()
-        logger.info("🗑️  Cache cleared")
+        logger.info("Cache cleared")
 
 
 class MCPConfigManager:
@@ -96,16 +96,16 @@ class MCPConfigManager:
             return
 
         if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-            logger.warning("⚠️  Supabase credentials not configured - MCP sync disabled")
+            logger.warning("Supabase credentials not configured - MCP sync disabled")
             self._initialized = True
             return
 
         try:
             self.supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-            logger.info("✅ Supabase client initialized")
+            logger.info("  Supabase client initialized")
             self._initialized = True
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Supabase client: {e}")
+            logger.error(f"Failed to initialize Supabase client: {e}")
             self._initialized = True
 
     def extract_user_id(self, auth_token: str) -> Optional[str]:
@@ -118,7 +118,7 @@ class MCPConfigManager:
             return None
 
         if not SUPABASE_JWT_SECRET:
-            logger.error("🚨 SUPABASE_JWT_SECRET not set - cannot verify tokens!")
+            logger.error("SUPABASE_JWT_SECRET not set - cannot verify tokens!")
             return None
 
         try:
@@ -138,17 +138,17 @@ class MCPConfigManager:
 
             user_id = decoded.get("sub")
             if user_id:
-                logger.debug(f"✅ Verified token for user_id: {user_id}")
+                logger.debug(f"  Verified token for user_id: {user_id}")
             return user_id
 
         except jwt.ExpiredSignatureError:
-            logger.warning("⚠️ Token has expired")
+            logger.warning("Token has expired")
             return None
         except jwt.InvalidSignatureError:
             logger.warning("🚨 Invalid token signature - possible forgery attempt!")
             return None
         except Exception as e:
-            logger.warning(f"⚠️ Failed to verify token: {type(e).__name__}")
+            logger.warning(f"Failed to verify token: {type(e).__name__}")
             return None
 
     def get_user_workspace(self, user_id: str) -> str:
@@ -166,7 +166,7 @@ class MCPConfigManager:
         # Create directory if not exists
         workspace_path.mkdir(parents=True, exist_ok=True)
 
-        logger.debug(f"📁 User workspace: {workspace_path}")
+        logger.debug(f"User workspace: {workspace_path}")
         return str(workspace_path.absolute())
 
     async def download_config(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -189,17 +189,17 @@ class MCPConfigManager:
             response = self.supabase.storage.from_(user_id).download(MCP_FILE_NAME)
 
             if not response:
-                logger.debug(f"ℹ️  No MCP config found for user: {user_id}")
+                logger.debug(f"No MCP config found for user: {user_id}")
                 return None
 
             # Parse JSON
             config = json.loads(response)
 
-            logger.info(f"✅ Downloaded MCP config for user: {user_id}")
+            logger.info(f"  Downloaded MCP config for user: {user_id}")
             return config
 
         except Exception as e:
-            logger.error(f"❌ Failed to download MCP config for user {user_id}: {e}")
+            logger.error(f"Failed to download MCP config for user {user_id}: {e}")
             return None
 
     async def get_mcp_servers(
@@ -229,7 +229,7 @@ class MCPConfigManager:
         mcp_file = Path(workspace) / MCP_FILE_NAME
 
         if not mcp_file.exists():
-            logger.debug(f"ℹ️  No .mcp.json found in workspace: {workspace}")
+            logger.debug(f"No .mcp.json found in workspace: {workspace}")
             return {}
 
         try:
@@ -244,12 +244,12 @@ class MCPConfigManager:
 
             mcp_servers = config.get("mcpServers", {})
             logger.debug(
-                f"✅ Loaded {len(mcp_servers)} MCP servers from local file: {mcp_file}"
+                f"  Loaded {len(mcp_servers)} MCP servers from local file: {mcp_file}"
             )
             return mcp_servers
 
         except Exception as e:
-            logger.error(f"❌ Failed to read .mcp.json from {mcp_file}: {e}")
+            logger.error(f"Failed to read .mcp.json from {mcp_file}: {e}")
             return {}
 
     async def sync_config(self, user_id: str):
@@ -257,21 +257,21 @@ class MCPConfigManager:
         Sync config for a specific user.
         Force download and update cache.
         """
-        logger.info(f"🔄 Syncing config for user: {user_id}")
+        logger.info(f"Syncing config for user: {user_id}")
 
         config = await self.download_config(user_id)
 
         if config:
             self.cache.set(user_id, config)
-            logger.info(f"✅ Config synced for user: {user_id}")
+            logger.info(f"  Config synced for user: {user_id}")
         else:
-            logger.info(f"ℹ️  No config to sync for user: {user_id}")
+            logger.info(f"No config to sync for user: {user_id}")
 
     async def background_sync(self):
         """
         Background task to periodically sync configs for active users.
         """
-        logger.info(f"🔄 Background sync started (interval: {SYNC_INTERVAL}s)")
+        logger.info(f"Background sync started (interval: {SYNC_INTERVAL}s)")
 
         while True:
             try:
@@ -290,45 +290,45 @@ class MCPConfigManager:
                     try:
                         await self.sync_config(user_id)
                     except Exception as e:
-                        logger.error(f"❌ Failed to sync user {user_id}: {e}")
+                        logger.error(f"Failed to sync user {user_id}: {e}")
 
-                logger.info("✅ Background sync completed")
+                logger.info("Background sync completed")
 
             except asyncio.CancelledError:
-                logger.info("🛑 Background sync cancelled")
+                logger.info("Background sync cancelled")
                 break
             except Exception as e:
-                logger.error(f"❌ Background sync error: {e}", exc_info=True)
+                logger.error(f"Background sync error: {e}", exc_info=True)
 
     def start_background_sync(self):
         """Start background sync task."""
         if self._sync_task and not self._sync_task.done():
-            logger.warning("⚠️  Background sync already running")
+            logger.warning("Background sync already running")
             return
 
         if not self.supabase:
-            logger.warning("⚠️  Supabase not configured - background sync disabled")
+            logger.warning("Supabase not configured - background sync disabled")
             return
 
         self._sync_task = asyncio.create_task(self.background_sync())
-        logger.info("🚀 Background sync task started")
+        logger.info("Background sync task started")
 
     def stop_background_sync(self):
         """Stop background sync task."""
         if self._sync_task and not self._sync_task.done():
             self._sync_task.cancel()
-            logger.info("🛑 Background sync task stopped")
+            logger.info("Background sync task stopped")
 
     def register_user(self, user_id: str):
         """Register user as active (for background sync)."""
         self._active_users.add(user_id)
-        logger.debug(f"👤 User registered: {user_id}")
+        logger.debug(f"User registered: {user_id}")
 
     def unregister_user(self, user_id: str):
         """Unregister user (stop syncing their config)."""
         if user_id in self._active_users:
             self._active_users.remove(user_id)
-            logger.debug(f"👋 User unregistered: {user_id}")
+            logger.debug(f"User unregistered: {user_id}")
 
 
 # Global instance

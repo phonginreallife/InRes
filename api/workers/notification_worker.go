@@ -74,7 +74,7 @@ func (w *NotificationWorker) deleteMessage(queueName string, msgID int64) {
 	query := `SELECT pgmq.delete($1, $2::bigint)`
 	_, err := w.PG.Exec(query, queueName, msgID)
 	if err != nil {
-		log.Printf("❌ Failed to delete message %d from queue %s: %v", msgID, queueName, err)
+		log.Printf("Failed to delete message %d from queue %s: %v", msgID, queueName, err)
 	}
 }
 
@@ -199,7 +199,7 @@ func (w *NotificationWorker) GetQueueStats() (map[string]interface{}, error) {
 
 		err := w.PG.QueryRow(query, queue).Scan(&metricsJSON)
 		if err != nil {
-			log.Printf("❌ Failed to get metrics for queue %s: %v", queue, err)
+			log.Printf("Failed to get metrics for queue %s: %v", queue, err)
 			continue
 		}
 
@@ -223,7 +223,7 @@ func (w *NotificationWorker) processIncidentActionsQueue(queueName string) {
 
 	rows, err := w.PG.Query(query, queueName, batchSize)
 	if err != nil {
-		log.Printf("❌ Failed to read from queue %s: %v", queueName, err)
+		log.Printf("Failed to read from queue %s: %v", queueName, err)
 		return
 	}
 	defer rows.Close()
@@ -239,7 +239,7 @@ func (w *NotificationWorker) processIncidentActionsQueue(queueName string) {
 		)
 
 		if err := rows.Scan(&msgID, &readCT, &enqueuedAt, &vt, &messageRaw); err != nil {
-			log.Printf("❌ Failed to scan message from queue %s: %v", queueName, err)
+			log.Printf("Failed to scan message from queue %s: %v", queueName, err)
 			continue
 		}
 
@@ -264,14 +264,14 @@ func (w *NotificationWorker) processIncidentActionsQueue(queueName string) {
 func (w *NotificationWorker) processIncidentAction(queueName string, pgmqMsg *PGMQMessage) {
 	var actionMsg map[string]interface{}
 	if err := json.Unmarshal(pgmqMsg.Message, &actionMsg); err != nil {
-		log.Printf("❌ Failed to unmarshal action message: %v", err)
+		log.Printf("Failed to unmarshal action message: %v", err)
 		w.deleteMessage(queueName, pgmqMsg.MsgID)
 		return
 	}
 
 	actionType, ok := actionMsg["type"].(string)
 	if !ok {
-		log.Printf("❌ Invalid action message - missing type")
+		log.Printf("Invalid action message - missing type")
 		w.deleteMessage(queueName, pgmqMsg.MsgID)
 		return
 	}
@@ -280,7 +280,7 @@ func (w *NotificationWorker) processIncidentAction(queueName string, pgmqMsg *PG
 	case "acknowledge_incident":
 		w.processAcknowledgeAction(actionMsg, pgmqMsg.MsgID, queueName)
 	default:
-		log.Printf("⚠️  Unknown action type: %s", actionType)
+		log.Printf("Unknown action type: %s", actionType)
 		w.deleteMessage(queueName, pgmqMsg.MsgID)
 	}
 }
@@ -294,7 +294,7 @@ func (w *NotificationWorker) processAcknowledgeAction(actionMsg map[string]inter
 	slackContext, hasSlackContext := actionMsg["slack_context"].(map[string]interface{})
 
 	if incidentID == "" || !hasSlackContext {
-		log.Printf("❌ Invalid acknowledge action - missing required fields")
+		log.Printf("Invalid acknowledge action - missing required fields")
 		w.deleteMessage(queueName, msgID)
 		return
 	}
@@ -302,7 +302,7 @@ func (w *NotificationWorker) processAcknowledgeAction(actionMsg map[string]inter
 	// Get Slack user ID from context
 	slackUserID, _ := slackContext["user_slack_id"].(string)
 	if slackUserID == "" {
-		log.Printf("❌ Missing Slack user ID in context")
+		log.Printf("Missing Slack user ID in context")
 		w.deleteMessage(queueName, msgID)
 		return
 	}
@@ -310,7 +310,7 @@ func (w *NotificationWorker) processAcknowledgeAction(actionMsg map[string]inter
 	// Lookup database user ID from Slack user ID
 	dbUserID, err := w.getUserIDFromSlackID(slackUserID)
 	if err != nil {
-		log.Printf("❌ Failed to lookup user ID for Slack user %s: %v", slackUserID, err)
+		log.Printf("Failed to lookup user ID for Slack user %s: %v", slackUserID, err)
 		if hasSlackContext {
 			w.sendSlackAcknowledgmentFailure(slackContext, incidentID, "User not found in database")
 		}
@@ -318,7 +318,7 @@ func (w *NotificationWorker) processAcknowledgeAction(actionMsg map[string]inter
 		return
 	}
 
-	log.Printf("📝 Processing acknowledgment for incident %s by user %s (Slack: %s)", incidentID, dbUserID, slackUserID)
+	log.Printf("Processing acknowledgment for incident %s by user %s (Slack: %s)", incidentID, dbUserID, slackUserID)
 
 	// Call API to acknowledge incident with database user ID
 	success := w.acknowledgeIncidentAPI(incidentID, dbUserID)
@@ -337,18 +337,18 @@ func (w *NotificationWorker) processAcknowledgeAction(actionMsg map[string]inter
 func (w *NotificationWorker) acknowledgeIncidentAPI(incidentID, userID string) bool {
 	// TODO: Implement actual API call to acknowledge incident
 	// For now, simulate success/failure
-	log.Printf("🔄 Calling API to acknowledge incident %s by user %s", incidentID, userID)
+	log.Printf("Calling API to acknowledge incident %s by user %s", incidentID, userID)
 
 	// Simulate API call (replace with actual implementation)
 	query := `UPDATE incidents SET status = 'acknowledged', acknowledged_by = $1, acknowledged_at = NOW() WHERE id = $2`
 	_, err := w.PG.Exec(query, userID, incidentID)
 
 	if err != nil {
-		log.Printf("❌ Failed to acknowledge incident %s: %v", incidentID, err)
+		log.Printf("Failed to acknowledge incident %s: %v", incidentID, err)
 		return false
 	}
 
-	log.Printf("✅ Successfully acknowledged incident %s", incidentID)
+	log.Printf("  Successfully acknowledged incident %s", incidentID)
 	return true
 }
 
@@ -365,9 +365,9 @@ func (w *NotificationWorker) sendSlackAcknowledgmentSuccess(slackContext map[str
 	}
 
 	if err := w.sendSlackFeedbackMessage(feedbackMsg); err != nil {
-		log.Printf("⚠️  Failed to send Slack success feedback: %v", err)
+		log.Printf("Failed to send Slack success feedback: %v", err)
 	} else {
-		log.Printf("✅ Sent Slack acknowledgment success feedback for incident %s", incidentID)
+		log.Printf("  Sent Slack acknowledgment success feedback for incident %s", incidentID)
 	}
 }
 
@@ -384,9 +384,9 @@ func (w *NotificationWorker) sendSlackAcknowledgmentFailure(slackContext map[str
 	}
 
 	if err := w.sendSlackFeedbackMessage(feedbackMsg); err != nil {
-		log.Printf("⚠️  Failed to send Slack failure feedback: %v", err)
+		log.Printf("Failed to send Slack failure feedback: %v", err)
 	} else {
-		log.Printf("✅ Sent Slack acknowledgment failure feedback for incident %s", incidentID)
+		log.Printf("  Sent Slack acknowledgment failure feedback for incident %s", incidentID)
 	}
 }
 

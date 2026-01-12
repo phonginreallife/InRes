@@ -23,7 +23,7 @@ class SlackRepository:
                 cursor_factory=RealDictCursor
             )
             self.db.autocommit = True
-            logger.info("✅ Database connected successfully")
+            logger.info("  Database connected successfully")
         except Exception as e:
             logger.error(f"❌ Failed to connect to database: {e}")
             raise
@@ -234,7 +234,7 @@ class SlackRepository:
                             channel_id, message_ts = parts
                             messages.append((channel_id, message_ts))
                 
-                logger.info(f"✅ Found {len(messages)} Slack messages for incident {incident_id[:8]}")
+                logger.info(f"  Found {len(messages)} Slack messages for incident {incident_id[:8]}")
                 return messages
                 
         except Exception as e:
@@ -273,7 +273,7 @@ class SlackRepository:
                     ('incident_actions', json.dumps(action_message))
                 )
                 
-            logger.info(f"✅ Queued acknowledgment request for incident {incident_id} by {user_name}")
+            logger.info(f"  Queued acknowledgment request for incident {incident_id} by {user_name}")
             return True
             
         except Exception as e:

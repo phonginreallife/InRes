@@ -85,7 +85,7 @@ export const createSchedulerWithShiftsOptimized = async (apiClient, groupId, sch
     }
     
     const duration = performance.now() - startTime;
-    console.log(`✅ Successfully created optimized scheduler in ${duration.toFixed(2)}ms`);
+    console.log(`  Successfully created optimized scheduler in ${duration.toFixed(2)}ms`);
     
     return {
       ...response,

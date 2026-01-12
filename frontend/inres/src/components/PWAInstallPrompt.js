@@ -31,7 +31,7 @@ export default function PWAInstallPrompt() {
       navigator.serviceWorker
         .register('/sw.js', { scope: '/' })
         .then((registration) => {
-          console.log('✅ Service Worker registered:', registration);
+          console.log('  Service Worker registered:', registration);
 
           // Check for updates
           registration.addEventListener('updatefound', () => {
@@ -100,7 +100,7 @@ export default function PWAInstallPrompt() {
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === 'accepted') {
-      console.log('✅ User accepted the install prompt');
+      console.log('  User accepted the install prompt');
     } else {
       console.log('❌ User dismissed the install prompt');
     }

@@ -15,7 +15,7 @@ export default function TopNav({ onNewIncident, onOpenSearch, onOpenAI }) {
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: '📊' },
     { href: '/incidents', label: 'Incidents', icon: '🔥' },
-    { href: '/monitors', label: 'Services', icon: '✅' },
+    { href: '/monitors', label: 'Services', icon: ' ' },
     { href: '/groups', label: 'Teams', icon: '👥' },
     { href: '/alerts', label: 'Alerts', icon: '🔔' },
   ];

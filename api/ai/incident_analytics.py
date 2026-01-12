@@ -31,7 +31,7 @@ class IncidentAnalyticsPGMQ:
         self.running = False
 
         if not self.db_url:
-            logger.warning("⚠️  DATABASE_URL not set - PGMQ incident analytics disabled")
+            logger.warning("DATABASE_URL not set - PGMQ incident analytics disabled")
             return
 
         logger.info(f"🤖 Incident Analytics PGMQ initialized (queue: {self.queue_name})")
@@ -174,7 +174,7 @@ Keep it practical and action-oriented for on-call engineers.
             set_auth_token(api_key)
             logger.info(f"🔑 Auth token set for incident analysis (len={len(api_key)})")
         else:
-            logger.warning("⚠️ inres_API_KEY not set - API calls may fail")
+            logger.warning("inres_API_KEY not set - API calls may fail")
 
         # Set tenant context from incident data (ReBAC tenant isolation)
         org_id = incident.get("organization_id") or incident.get("org_id")
@@ -182,7 +182,7 @@ Keep it practical and action-oriented for on-call engineers.
             set_org_id(org_id)
             logger.info(f"🏢 Org context set for incident analysis: {org_id}")
         else:
-            logger.warning("⚠️ No organization_id in incident data - API calls may fail")
+            logger.warning("No organization_id in incident data - API calls may fail")
 
         project_id = incident.get("project_id")
         if project_id:
@@ -301,7 +301,7 @@ Keep it practical and action-oriented for on-call engineers.
         self.running = True
         self.create_queue_if_not_exists()
 
-        logger.info(f"🚀 Starting PGMQ incident analytics consumer...")
+        logger.info(f"Starting PGMQ incident analytics consumer...")
 
         while self.running:
             try:

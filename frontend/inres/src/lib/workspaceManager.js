@@ -238,7 +238,7 @@ export async function getMCPServersFromDB(userId) {
       }
     }
 
-    console.log('[workspaceManager] ✅ Loaded', result.servers?.length || 0, 'MCP servers from PostgreSQL');
+    console.log('[workspaceManager]   Loaded', result.servers?.length || 0, 'MCP servers from PostgreSQL');
 
     return {
       success: true,
@@ -269,7 +269,7 @@ export async function saveMCPServerToDB(userId, serverName, serverConfig) {
       throw new Error(result.error || 'Failed to save MCP server');
     }
 
-    console.log('[workspaceManager] ✅ MCP server saved to PostgreSQL');
+    console.log('[workspaceManager]   MCP server saved to PostgreSQL');
     return { success: true, server: result.server };
   } catch (error) {
     console.error('[workspaceManager] ❌ Failed to save MCP server to DB:', error);
@@ -293,7 +293,7 @@ export async function deleteMCPServerFromDB(userId, serverName) {
       throw new Error(result.error || 'Failed to delete MCP server');
     }
 
-    console.log('[workspaceManager] ✅ MCP server deleted from PostgreSQL');
+    console.log('[workspaceManager]   MCP server deleted from PostgreSQL');
     return { success: true, message: result.message };
   } catch (error) {
     console.error('[workspaceManager] ❌ Failed to delete MCP server from DB:', error);
@@ -323,7 +323,7 @@ export async function getMemoryFromDB(userId, scope = 'local') {
       throw new Error(result.error || 'Failed to get memory');
     }
 
-    console.log('[workspaceManager] ✅ Loaded CLAUDE.md from PostgreSQL');
+    console.log('[workspaceManager]   Loaded CLAUDE.md from PostgreSQL');
 
     return {
       success: true,
@@ -353,7 +353,7 @@ export async function saveMemoryToDB(userId, content, scope = 'local') {
       throw new Error(result.error || 'Failed to save memory');
     }
 
-    console.log('[workspaceManager] ✅ CLAUDE.md saved to PostgreSQL');
+    console.log('[workspaceManager]   CLAUDE.md saved to PostgreSQL');
     return { success: true, content: result.content, updated_at: result.updated_at };
   } catch (error) {
     console.error('[workspaceManager] ❌ Failed to save memory to DB:', error);
@@ -377,7 +377,7 @@ export async function deleteMemoryFromDB(userId, scope = 'local') {
       throw new Error(result.error || 'Failed to delete memory');
     }
 
-    console.log('[workspaceManager] ✅ CLAUDE.md deleted from PostgreSQL');
+    console.log('[workspaceManager]   CLAUDE.md deleted from PostgreSQL');
     return { success: true, message: result.message };
   } catch (error) {
     console.error('[workspaceManager] ❌ Failed to delete memory from DB:', error);
@@ -473,7 +473,7 @@ export async function getInstalledPluginsFromDB(userId, authToken) {
       return { success: false, error: result.error };
     }
 
-    console.log('[workspaceManager] ✅ Loaded', result.plugins?.length || 0, 'plugins from AI API');
+    console.log('[workspaceManager]   Loaded', result.plugins?.length || 0, 'plugins from AI API');
 
     return { success: true, plugins: result.plugins || [] };
   } catch (error) {
@@ -517,7 +517,7 @@ export async function addInstalledPluginToDB(userId, plugin, authToken) {
       return { success: false, error: result.error };
     }
 
-    console.log('[workspaceManager] ✅ Plugin added via AI API');
+    console.log('[workspaceManager]   Plugin added via AI API');
     return { success: true, plugin: result.plugin };
   } catch (error) {
     console.error('[workspaceManager] ❌ Failed to add plugin via API:', error);
@@ -548,7 +548,7 @@ export async function removeInstalledPluginFromDB(userId, pluginId, authToken) {
       return { success: false, error: result.error };
     }
 
-    console.log('[workspaceManager] ✅ Plugin removed via AI API');
+    console.log('[workspaceManager]   Plugin removed via AI API');
     return { success: true };
   } catch (error) {
     console.error('[workspaceManager] ❌ Failed to remove plugin via API:', error);
@@ -584,7 +584,7 @@ export async function loadMarketplaceFromDB(userId, marketplaceName, authToken) 
       return { success: false, error: 'Marketplace not found' };
     }
 
-    console.log('[workspaceManager] ✅ Loaded marketplace from AI API:', result.marketplace.name);
+    console.log('[workspaceManager]   Loaded marketplace from AI API:', result.marketplace.name);
     console.log('[workspaceManager]    Plugins:', result.marketplace.plugins?.length || 0);
 
     return { success: true, marketplace: result.marketplace };
@@ -616,7 +616,7 @@ export async function loadAllMarketplacesFromDB(userId, authToken) {
       return { success: false, error: result.error };
     }
 
-    console.log('[workspaceManager] ✅ Loaded', result.marketplaces?.length || 0, 'marketplaces from AI API');
+    console.log('[workspaceManager]   Loaded', result.marketplaces?.length || 0, 'marketplaces from AI API');
 
     return { success: true, marketplaces: result.marketplaces || [] };
   } catch (error) {
@@ -699,7 +699,7 @@ export async function deleteMarketplaceAsync(marketplaceName, authToken) {
       throw new Error(result.error || 'Failed to delete marketplace');
     }
 
-    console.log(`[deleteMarketplaceAsync] ✅ Marketplace deletion initiated (job_id: ${result.job_id})`);
+    console.log(`[deleteMarketplaceAsync]   Marketplace deletion initiated (job_id: ${result.job_id})`);
 
     return {
       success: true,
