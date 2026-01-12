@@ -1,4 +1,4 @@
-# InRes
+# <img src="images/icon.svg" alt="InRes" width="24" height="24"/> InRes
 
 ### AI-Native Incident Response Platform
 
@@ -7,7 +7,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python)](https://python.org)
 
-InRes is an open-source on-call and incident management platform with an integrated AI agent that can investigate, diagnose, and help remediate issues — with human-in-the-loop approval for sensitive actions.
+InRes is an open-source on-call and incident management platform with an integrated AI agent that can investigate, diagnose, and help remediate issues - with human-in-the-loop approval for sensitive actions.
 
 <p align="center">
   <img src="images/dashboard.png" alt="InRes Dashboard" width="800"/>
