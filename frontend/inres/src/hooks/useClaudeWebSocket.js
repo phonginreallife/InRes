@@ -12,9 +12,18 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import apiClient from '../lib/api';
 
-const HOST = window.location.host;
-const PROTOCOL = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_AI_WS_URL || `${PROTOCOL}://${HOST}/ws/chat`;
+// Use /ws/stream for token-level streaming, /ws/chat for block streaming
+const USE_TOKEN_STREAMING = process.env.NEXT_PUBLIC_USE_TOKEN_STREAMING === 'true';
+
+// Build WebSocket URL dynamically (handles SSR where window is undefined)
+function getWebSocketUrl() {
+  if (typeof window === 'undefined') return '';
+  const host = window.location.host;
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const endpoint = USE_TOKEN_STREAMING ? '/ws/stream' : '/ws/chat';
+  console.log(`[WebSocket] Using ${USE_TOKEN_STREAMING ? 'TOKEN' : 'BLOCK'} streaming: ${endpoint}`);
+  return process.env.NEXT_PUBLIC_AI_WS_URL || `${protocol}://${host}${endpoint}`;
+}
 
 /**
  * Claude WebSocket Hook Options
@@ -122,9 +131,10 @@ export function useClaudeWebSocket(authToken = null, options = {}) {
       if (currentProjectId) params.append('project_id', currentProjectId);
 
       const queryString = params.toString();
-      const wsUrl = queryString ? `${DEFAULT_WS_URL}?${queryString}` : DEFAULT_WS_URL;
+      const baseWsUrl = getWebSocketUrl();
+      const wsUrl = queryString ? `${baseWsUrl}?${queryString}` : baseWsUrl;
 
-      console.log('Connecting to WebSocket:', DEFAULT_WS_URL, {
+      console.log('Connecting to WebSocket:', baseWsUrl, {
         hasToken: !!token,
         orgId: currentOrgId || 'none',
         projectId: currentProjectId || 'none'
