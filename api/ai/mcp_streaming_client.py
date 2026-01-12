@@ -8,16 +8,29 @@ MCP Protocol (JSON-RPC over stdio):
 1. initialize - handshake with server
 2. tools/list - get available tools
 3. tools/call - execute a tool
+
+SCALABILITY FEATURES:
+- Global connection pool for shared MCP servers
+- Reference counting for cleanup
+- Lazy initialization (start on first tool call)
+- Configurable max servers per user
+- Automatic cleanup of idle servers
 """
 
 import asyncio
 import json
 import logging
 import os
-import subprocess
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Set
+from weakref import WeakSet
 
 logger = logging.getLogger(__name__)
+
+# Configuration for scalability
+MAX_MCP_SERVERS_PER_USER = int(os.getenv("MAX_MCP_SERVERS_PER_USER", "5"))
+MAX_GLOBAL_MCP_SERVERS = int(os.getenv("MAX_GLOBAL_MCP_SERVERS", "50"))
+MCP_SERVER_IDLE_TIMEOUT = int(os.getenv("MCP_SERVER_IDLE_TIMEOUT", "300"))  # 5 minutes
 
 
 class MCPServerClient:
@@ -369,3 +382,226 @@ class MCPToolManager:
     def tool_count(self) -> int:
         """Total number of tools across all servers."""
         return sum(len(s.tools) for s in self.servers.values())
+
+
+# =============================================================================
+# GLOBAL MCP SERVER POOL (for scalability)
+# =============================================================================
+
+class MCPServerPool:
+    """
+    Global pool of MCP servers shared across sessions.
+    
+    Scalability features:
+    - Connection pooling: Same MCP server config shares one process
+    - Reference counting: Clean up when no sessions use a server
+    - Idle timeout: Auto-cleanup of unused servers
+    - Limits: Max servers per user and globally
+    
+    Usage:
+        pool = get_mcp_pool()
+        servers = await pool.get_servers_for_user(user_id, config)
+        # ... use servers ...
+        await pool.release_servers_for_user(user_id)
+    """
+    
+    _instance: Optional['MCPServerPool'] = None
+    _lock = asyncio.Lock()
+    
+    def __init__(self):
+        # server_key -> MCPServerClient
+        self._servers: Dict[str, MCPServerClient] = {}
+        # server_key -> set of user_ids using it
+        self._server_refs: Dict[str, Set[str]] = {}
+        # server_key -> last access time
+        self._last_access: Dict[str, float] = {}
+        # user_id -> set of server_keys
+        self._user_servers: Dict[str, Set[str]] = {}
+        # Cleanup task
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._running = False
+    
+    @classmethod
+    async def get_instance(cls) -> 'MCPServerPool':
+        """Get or create the singleton pool instance."""
+        async with cls._lock:
+            if cls._instance is None:
+                cls._instance = MCPServerPool()
+                await cls._instance._start_cleanup_task()
+            return cls._instance
+    
+    async def _start_cleanup_task(self):
+        """Start background cleanup of idle servers."""
+        if self._running:
+            return
+        self._running = True
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+    
+    async def _cleanup_loop(self):
+        """Periodically clean up idle servers."""
+        while self._running:
+            try:
+                await asyncio.sleep(60)  # Check every minute
+                await self._cleanup_idle_servers()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Pool cleanup error: {e}")
+    
+    async def _cleanup_idle_servers(self):
+        """Stop servers that have been idle too long."""
+        now = time.time()
+        to_remove = []
+        
+        for key, last_access in self._last_access.items():
+            if now - last_access > MCP_SERVER_IDLE_TIMEOUT:
+                refs = self._server_refs.get(key, set())
+                if not refs:  # No active users
+                    to_remove.append(key)
+        
+        for key in to_remove:
+            await self._stop_server(key)
+            logger.info(f"Cleaned up idle MCP server: {key}")
+    
+    def _make_server_key(self, config: Dict[str, Any]) -> str:
+        """Create unique key for a server config."""
+        # Key based on command + args + env (sorted for consistency)
+        parts = [
+            config.get("command", ""),
+            json.dumps(config.get("args", []), sort_keys=True),
+            json.dumps(config.get("env", {}), sort_keys=True)
+        ]
+        return ":".join(parts)
+    
+    async def get_servers_for_user(
+        self,
+        user_id: str,
+        config: Dict[str, Any]
+    ) -> MCPToolManager:
+        """
+        Get MCP servers for a user, using pooled connections where possible.
+        
+        Args:
+            user_id: User identifier
+            config: Dict of server_name -> server_config
+        
+        Returns:
+            MCPToolManager with user's servers
+        """
+        manager = MCPToolManager()
+        user_server_keys: Set[str] = set()
+        
+        servers_started = 0
+        
+        for name, server_config in config.items():
+            # Skip non-stdio servers
+            if "command" not in server_config:
+                continue
+            
+            # Check user limit
+            if servers_started >= MAX_MCP_SERVERS_PER_USER:
+                logger.warning(f"User {user_id} hit MCP server limit ({MAX_MCP_SERVERS_PER_USER})")
+                break
+            
+            # Check global limit
+            if len(self._servers) >= MAX_GLOBAL_MCP_SERVERS:
+                logger.warning(f"Global MCP server limit reached ({MAX_GLOBAL_MCP_SERVERS})")
+                break
+            
+            server_key = self._make_server_key(server_config)
+            
+            # Try to reuse existing server
+            if server_key in self._servers:
+                server = self._servers[server_key]
+                if server._initialized:
+                    # Add reference
+                    self._server_refs.setdefault(server_key, set()).add(user_id)
+                    self._last_access[server_key] = time.time()
+                    user_server_keys.add(server_key)
+                    manager.servers[name] = server
+                    servers_started += 1
+                    logger.debug(f"Reusing pooled MCP server: {name}")
+                    continue
+            
+            # Start new server
+            client = MCPServerClient(
+                name=name,
+                command=server_config["command"],
+                args=server_config.get("args", []),
+                env=server_config.get("env", {})
+            )
+            
+            success = await client.start()
+            if success:
+                self._servers[server_key] = client
+                self._server_refs.setdefault(server_key, set()).add(user_id)
+                self._last_access[server_key] = time.time()
+                user_server_keys.add(server_key)
+                manager.servers[name] = client
+                servers_started += 1
+                logger.info(f"Started pooled MCP server: {name}")
+        
+        # Track user's servers
+        self._user_servers[user_id] = user_server_keys
+        
+        return manager
+    
+    async def release_servers_for_user(self, user_id: str):
+        """Release user's references to pooled servers."""
+        server_keys = self._user_servers.pop(user_id, set())
+        
+        for key in server_keys:
+            refs = self._server_refs.get(key, set())
+            refs.discard(user_id)
+            
+            # If no more references and server idle, mark for cleanup
+            if not refs:
+                self._last_access[key] = time.time()
+        
+        logger.debug(f"Released {len(server_keys)} server refs for user {user_id}")
+    
+    async def _stop_server(self, key: str):
+        """Stop and remove a server from the pool."""
+        server = self._servers.pop(key, None)
+        if server:
+            await server.stop()
+        self._server_refs.pop(key, None)
+        self._last_access.pop(key, None)
+    
+    async def shutdown(self):
+        """Shutdown the entire pool."""
+        self._running = False
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+        
+        for key in list(self._servers.keys()):
+            await self._stop_server(key)
+        
+        self._user_servers.clear()
+        logger.info("MCP server pool shutdown complete")
+    
+    @property
+    def stats(self) -> Dict[str, Any]:
+        """Get pool statistics."""
+        return {
+            "total_servers": len(self._servers),
+            "total_users": len(self._user_servers),
+            "max_per_user": MAX_MCP_SERVERS_PER_USER,
+            "max_global": MAX_GLOBAL_MCP_SERVERS,
+            "idle_timeout_seconds": MCP_SERVER_IDLE_TIMEOUT
+        }
+
+
+# Singleton accessor
+_pool_instance: Optional[MCPServerPool] = None
+
+async def get_mcp_pool() -> MCPServerPool:
+    """Get the global MCP server pool."""
+    global _pool_instance
+    if _pool_instance is None:
+        _pool_instance = await MCPServerPool.get_instance()
+    return _pool_instance
