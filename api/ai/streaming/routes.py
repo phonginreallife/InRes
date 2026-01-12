@@ -21,13 +21,18 @@ import uuid
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+# Parent package imports (api/ai level)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from supabase_storage import extract_user_id_from_token, get_user_mcp_servers
-
-from streaming_agent import StreamingAgent, INCIDENT_TOOLS
-from mcp_streaming_client import MCPToolManager, get_mcp_pool
-
-# Use core module for unified tool execution
 from core.tool_executor import ToolExecutor, ToolContext, create_tool_executor
+
+# Local package imports
+from .agent import StreamingAgent, INCIDENT_TOOLS
+from .mcp_client import MCPToolManager, get_mcp_pool
 
 logger = logging.getLogger(__name__)
 

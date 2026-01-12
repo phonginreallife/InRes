@@ -79,7 +79,7 @@ from routes_mcp import router as mcp_router
 from routes_tools import router as tools_router
 from routes_memory import router as memory_router
 from routes_marketplace import router as marketplace_router
-from routes_streaming import router as streaming_router
+from streaming import streaming_router  # Moved to streaming package
 from incident_analytics import start_pgmq_consumer, stop_pgmq_consumer
 
 # Configure logging
@@ -316,7 +316,7 @@ app.include_router(marketplace_router)
 logger.info("[Marketplace] Marketplace routes loaded from routes_marketplace.py")
 
 app.include_router(streaming_router)
-logger.info("[Streaming] Token streaming routes loaded from routes_streaming.py")
+logger.info("[Streaming] Token streaming routes loaded from streaming package")
 
 # In-memory cache for user MCP configs
 # Simple dict cache - cleared on restart

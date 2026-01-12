@@ -5,9 +5,9 @@ This module provides true token-by-token streaming from the Anthropic API,
 delivering a fast and responsive user experience.
 
 Components:
-- StreamingAgent: Agent implementation using direct Anthropic API
-- routes: WebSocket endpoint for /ws/stream
-- mcp_client: MCP server pool for external tool integrations
+- agent.py: StreamingAgent implementation using direct Anthropic API
+- routes.py: WebSocket endpoint for /ws/stream
+- mcp_client.py: MCP server pool for external tool integrations
 
 Features:
 - True token streaming (not block streaming)
@@ -22,26 +22,19 @@ Usage:
     response = await agent.stream_response(prompt, output_queue, tool_executor)
 """
 
-# Re-export from submodules for convenience
-# These will be available after migration is complete
+from .agent import StreamingAgent, create_streaming_agent, INCIDENT_TOOLS
+from .mcp_client import MCPToolManager, MCPServerPool, get_mcp_pool
+from .routes import router as streaming_router
 
 __all__ = [
+    # Agent
     "StreamingAgent",
     "create_streaming_agent", 
     "INCIDENT_TOOLS",
+    # MCP
     "MCPToolManager",
     "MCPServerPool",
     "get_mcp_pool",
+    # Routes
+    "streaming_router",
 ]
-
-# Lazy imports to avoid circular dependencies during migration
-def __getattr__(name):
-    if name in ("StreamingAgent", "create_streaming_agent", "INCIDENT_TOOLS"):
-        from streaming_agent import StreamingAgent, create_streaming_agent, INCIDENT_TOOLS
-        return locals()[name]
-    
-    if name in ("MCPToolManager", "MCPServerPool", "get_mcp_pool"):
-        from mcp_streaming_client import MCPToolManager, MCPServerPool, get_mcp_pool
-        return locals()[name]
-    
-    raise AttributeError(f"module 'streaming' has no attribute '{name}'")
