@@ -30,24 +30,24 @@ InRes is an open-source on-call and incident management platform with an integra
 ## Features
 
 ### Incident Management
-- **Full Lifecycle** — Triggered → Acknowledged → Resolved with audit trail
-- **Smart Deduplication** — Fingerprint-based alert grouping
-- **Auto-Resolution** — Recovery alerts automatically resolve incidents
-- **Priority Mapping** — P1-P5 compatible with PagerDuty/Datadog
+- **Full Lifecycle** - Triggered → Acknowledged → Resolved with audit trail
+- **Smart Deduplication** - Fingerprint-based alert grouping
+- **Auto-Resolution** - Recovery alerts automatically resolve incidents
+- **Priority Mapping** - P1-P5 compatible with PagerDuty/Datadog
 
 ### On-Call & Escalation
-- **Visual Scheduling** — Interactive timeline with drag-and-drop
-- **Rotation Management** — Weekly, daily, custom rotations
-- **Schedule Overrides** — Vacation swaps, temporary changes
-- **Multi-Level Escalation** — Time-based escalation chains
-- **Auto-Assignment** — Route incidents to the right person
+- **Visual Scheduling** - Interactive timeline with drag-and-drop
+- **Rotation Management** - Weekly, daily, custom rotations
+- **Schedule Overrides** - Vacation swaps, temporary changes
+- **Multi-Level Escalation** - Time-based escalation chains
+- **Auto-Assignment** - Route incidents to the right person
 
 ### AI Agent (Claude-Powered)
-- **Real-time Chat** — WebSocket streaming responses
-- **Tool Execution** — Query systems, run commands, analyze logs
-- **Human-in-the-Loop** — Approve sensitive actions before execution
-- **Memory & Context** — Persistent conversations across sessions
-- **MCP Integration** — Extensible tool ecosystem
+- **Real-time Chat** - WebSocket streaming responses
+- **Tool Execution** - Query systems, run commands, analyze logs
+- **Human-in-the-Loop** - Approve sensitive actions before execution
+- **Memory & Context** - Persistent conversations across sessions
+- **MCP Integration** - Extensible tool ecosystem
 
 ### Integrations
 
@@ -260,11 +260,11 @@ GET    /mcp/servers            List MCP tools
 
 ## Security
 
-- **Authentication** — Supabase JWT with RS256/ES256 verification
-- **Authorization** — ReBAC for fine-grained tenant isolation
-- **AI Safety** — Human approval required for sensitive tool execution
-- **Audit Trail** — Complete logging of all actions and AI operations
-- **SQL Injection** — Parameterized queries throughout
+- **Authentication** - Supabase JWT with RS256/ES256 verification
+- **Authorization** - ReBAC for fine-grained tenant isolation
+- **AI Safety** - Human approval required for sensitive tool execution
+- **Audit Trail** - Complete logging of all actions and AI operations
+- **SQL Injection** - Parameterized queries throughout
 
 ---
 
@@ -301,15 +301,15 @@ git push origin feature/your-feature
 
 ## License
 
-[AGPLv3](LICENSE) — Self-host freely, no vendor lock-in.
+[AGPLv3](LICENSE) - Self-host freely, no vendor lock-in.
 
 ---
 
 ## Acknowledgements
 
-- [slar](https://github.com/SlarOps/slar) — Original inspiration
-- [Anthropic Claude](https://anthropic.com) — AI capabilities
-- [Supabase](https://supabase.com) — Auth & Database
+- [slar](https://github.com/SlarOps/slar) - Original inspiration
+- [Anthropic Claude](https://anthropic.com) - AI capabilities
+- [Supabase](https://supabase.com) - Auth & Database
 
 ---
 
