@@ -83,7 +83,12 @@ class StreamingAgent:
         self.messages.append({"role": "assistant", "content": content})
     
     def add_tool_result(self, tool_use_id: str, result: str) -> None:
-        """Add a tool result to conversation history."""
+        """Add a tool result to conversation history.
+        
+        DEPRECATED: Use add_tool_results() for multiple results.
+        This method is kept for backwards compatibility but should be
+        used only when there's a single tool result.
+        """
         self.messages.append({
             "role": "user",
             "content": [{
@@ -91,6 +96,31 @@ class StreamingAgent:
                 "tool_use_id": tool_use_id,
                 "content": result
             }]
+        })
+    
+    def add_tool_results(self, results: list) -> None:
+        """Add multiple tool results in a single user message.
+        
+        The Anthropic API requires ALL tool_results for a single assistant
+        message to be in ONE user message. This method handles that correctly.
+        
+        Args:
+            results: List of dicts with 'tool_use_id' and 'result' keys
+        """
+        if not results:
+            return
+        
+        content = []
+        for tr in results:
+            content.append({
+                "type": "tool_result",
+                "tool_use_id": tr["tool_use_id"],
+                "content": tr["result"]
+            })
+        
+        self.messages.append({
+            "role": "user",
+            "content": content
         })
     
     def interrupt(self) -> None:
@@ -104,6 +134,110 @@ class StreamingAgent:
     def clear_history(self) -> None:
         """Clear conversation history."""
         self.messages = []
+    
+    def validate_and_fix_history(self) -> None:
+        """
+        Validate conversation history and fix any issues that would cause API errors.
+        
+        The most common issue is dangling tool_use blocks without corresponding
+        tool_result blocks. This can happen when:
+        - Tool execution fails
+        - Connection is interrupted
+        - Previous error recovery didn't clean up properly
+        
+        Fix strategy: If we find an assistant message with tool_use blocks not
+        followed by a user message with matching tool_results, we either:
+        1. Add synthetic tool_results if we can identify the missing IDs
+        2. Remove the problematic messages
+        """
+        if len(self.messages) < 2:
+            return
+        
+        fixed = False
+        i = 0
+        
+        while i < len(self.messages):
+            msg = self.messages[i]
+            
+            # Check if this is an assistant message with tool_use blocks
+            if msg.get("role") == "assistant":
+                content = msg.get("content", [])
+                
+                # Find tool_use blocks in this message
+                tool_use_ids = set()
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "tool_use":
+                            tool_use_ids.add(block.get("id"))
+                
+                if tool_use_ids:
+                    # This assistant message has tool_use blocks
+                    # The next message MUST be a user message with tool_result blocks
+                    
+                    if i + 1 >= len(self.messages):
+                        # No next message - add synthetic results
+                        logger.warning(f"Dangling tool_use at end of history, adding synthetic results")
+                        self.messages.append({
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tid,
+                                    "content": "Tool execution was interrupted. Please try again."
+                                }
+                                for tid in tool_use_ids
+                            ]
+                        })
+                        fixed = True
+                        break
+                    
+                    next_msg = self.messages[i + 1]
+                    
+                    # Check if next message is a user message with tool_results
+                    if next_msg.get("role") != "user":
+                        # Wrong! Need to insert tool_results
+                        logger.warning(f"Missing tool_result after tool_use, inserting synthetic results")
+                        synthetic_results = {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tid,
+                                    "content": "Tool execution was interrupted. Please try again."
+                                }
+                                for tid in tool_use_ids
+                            ]
+                        }
+                        self.messages.insert(i + 1, synthetic_results)
+                        fixed = True
+                        i += 1  # Skip the inserted message
+                    else:
+                        # Next message is user - check if it has the right tool_results
+                        next_content = next_msg.get("content", [])
+                        result_ids = set()
+                        
+                        if isinstance(next_content, list):
+                            for block in next_content:
+                                if isinstance(block, dict) and block.get("type") == "tool_result":
+                                    result_ids.add(block.get("tool_use_id"))
+                        
+                        missing_ids = tool_use_ids - result_ids
+                        if missing_ids:
+                            # Some tool_use IDs don't have results - add them
+                            logger.warning(f"Missing tool_results for IDs: {missing_ids}")
+                            for tid in missing_ids:
+                                if isinstance(next_content, list):
+                                    next_content.append({
+                                        "type": "tool_result",
+                                        "tool_use_id": tid,
+                                        "content": "Tool result was lost. Please try again."
+                                    })
+                                    fixed = True
+            
+            i += 1
+        
+        if fixed:
+            logger.info("Conversation history was fixed to resolve tool_use/tool_result mismatches")
     
     async def stream_response(
         self,
@@ -131,6 +265,10 @@ class StreamingAgent:
             - {"type": "error", "error": "..."}  # On error
         """
         self.reset_interrupt()
+        
+        # Validate and fix any corrupted history before adding new message
+        self.validate_and_fix_history()
+        
         self.add_user_message(prompt)
         
         full_response = ""
@@ -228,6 +366,19 @@ class StreamingAgent:
                                     
                             except json.JSONDecodeError as e:
                                 logger.error(f"Failed to parse tool input: {e}")
+                                # Still add error result to prevent history corruption
+                                if tool_executor and current_tool_use:
+                                    error_result = f"Error: Failed to parse tool input JSON: {str(e)}"
+                                    await output_queue.put({
+                                        "type": "tool_result",
+                                        "tool_use_id": current_tool_use["id"],
+                                        "content": error_result,
+                                        "is_error": True
+                                    })
+                                    pending_tool_results.append({
+                                        "tool_use_id": current_tool_use["id"],
+                                        "result": error_result
+                                    })
                             finally:
                                 current_tool_use = None
                                 tool_input_json = ""
@@ -256,9 +407,10 @@ class StreamingAgent:
                     
                     self.messages.append({"role": "assistant", "content": assistant_content})
                     
-                    # NOW add tool results (user message)
-                    for tr in pending_tool_results:
-                        self.add_tool_result(tr["tool_use_id"], tr["result"])
+                    # NOW add tool results (user message) - ALL in ONE message!
+                    # The Anthropic API requires all tool_results for one assistant
+                    # message to be in a single user message
+                    self.add_tool_results(pending_tool_results)
                     
                     # Continue conversation with tool results
                     try:
@@ -287,7 +439,11 @@ class StreamingAgent:
             error_msg = f"Anthropic API error: {str(e)}"
             logger.error(error_msg)
             await output_queue.put({"type": "error", "error": error_msg})
-            # Don't raise - let the session continue with clean state
+            # CRITICAL: Clear corrupted message history to prevent future API errors
+            # This happens when tool_use blocks don't have corresponding tool_result blocks
+            if "tool_use" in str(e) and "tool_result" in str(e):
+                logger.warning("Detected corrupted message history (tool_use without tool_result), clearing history")
+                self.messages = []
             return ""
         except Exception as e:
             error_msg = f"Streaming error: {str(e)}"
@@ -330,6 +486,9 @@ class StreamingAgent:
     ) -> str:
         """Stream continuation after tool use."""
         full_response = ""
+        
+        # Validate history before continuation to catch any issues
+        self.validate_and_fix_history()
         
         try:
             request_params = {
@@ -424,9 +583,8 @@ class StreamingAgent:
                     
                     self.messages.append({"role": "assistant", "content": assistant_content})
                     
-                    # NOW add tool results (user message)
-                    for tr in pending_tool_results:
-                        self.add_tool_result(tr["tool_use_id"], tr["result"])
+                    # NOW add tool results (user message) - ALL in ONE message!
+                    self.add_tool_results(pending_tool_results)
                     
                     try:
                         continued = await self._stream_continuation(output_queue, tool_executor)
