@@ -26,10 +26,19 @@ function getWebSocketUrl() {
   }
   
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  // Use Kong gateway (port 8000) for WebSocket connections
-  const wsPort = process.env.NEXT_PUBLIC_WS_PORT || '8000';
-  const host = window.location.hostname + ':' + wsPort;
   const endpoint = USE_TOKEN_STREAMING ? '/ws/stream' : '/ws/chat';
+  
+  // In production (HTTPS), use the same host without explicit port (nginx handles routing)
+  // In development (HTTP), use Kong port 8000 directly
+  let host;
+  if (window.location.protocol === 'https:') {
+    // Production: nginx on 443 proxies /ws/* to Kong
+    host = window.location.hostname;
+  } else {
+    // Development: connect directly to Kong on port 8000
+    const wsPort = process.env.NEXT_PUBLIC_WS_PORT || '8000';
+    host = window.location.hostname + ':' + wsPort;
+  }
   
   console.log(`[WebSocket] Using ${USE_TOKEN_STREAMING ? 'TOKEN' : 'BLOCK'} streaming: ${protocol}://${host}${endpoint}`);
   return `${protocol}://${host}${endpoint}`;
