@@ -1,6 +1,6 @@
 #!/bin/bash
 # Test full PagerDuty webhook flow: TRIGGER -> wait -> RESOLVE
-# Usage: ./test-webhook-full-flow.sh [integration_id] [wait_seconds]
+# Usage: ./test-webhook.sh [integration_id] [wait_seconds]
 
 INTEGRATION_ID="${1:-91e3593a-58d2-4277-b1c7-6738dac61184}"
 WAIT_SECONDS="${2:-5}"

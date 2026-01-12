@@ -12,9 +12,28 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import apiClient from '../lib/api';
 
-const HOST = window.location.host;
-const PROTOCOL = window.location.protocol === 'https:' ? 'wss' : 'ws';
-const DEFAULT_WS_URL = process.env.NEXT_PUBLIC_AI_WS_URL || `${PROTOCOL}://${HOST}/ws/chat`;
+// Use /ws/stream for token-level streaming, /ws/chat for block streaming
+const USE_TOKEN_STREAMING = process.env.NEXT_PUBLIC_USE_TOKEN_STREAMING === 'true';
+
+// Build WebSocket URL dynamically (handles SSR where window is undefined)
+function getWebSocketUrl() {
+  if (typeof window === 'undefined') return '';
+  
+  // Check for explicit WS URL override
+  if (process.env.NEXT_PUBLIC_AI_WS_URL) {
+    console.log(`[WebSocket] Using configured URL: ${process.env.NEXT_PUBLIC_AI_WS_URL}`);
+    return process.env.NEXT_PUBLIC_AI_WS_URL;
+  }
+  
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  // Use Kong gateway (port 8000) for WebSocket connections
+  const wsPort = process.env.NEXT_PUBLIC_WS_PORT || '8000';
+  const host = window.location.hostname + ':' + wsPort;
+  const endpoint = USE_TOKEN_STREAMING ? '/ws/stream' : '/ws/chat';
+  
+  console.log(`[WebSocket] Using ${USE_TOKEN_STREAMING ? 'TOKEN' : 'BLOCK'} streaming: ${protocol}://${host}${endpoint}`);
+  return `${protocol}://${host}${endpoint}`;
+}
 
 /**
  * Claude WebSocket Hook Options
@@ -122,9 +141,10 @@ export function useClaudeWebSocket(authToken = null, options = {}) {
       if (currentProjectId) params.append('project_id', currentProjectId);
 
       const queryString = params.toString();
-      const wsUrl = queryString ? `${DEFAULT_WS_URL}?${queryString}` : DEFAULT_WS_URL;
+      const baseWsUrl = getWebSocketUrl();
+      const wsUrl = queryString ? `${baseWsUrl}?${queryString}` : baseWsUrl;
 
-      console.log('Connecting to WebSocket:', DEFAULT_WS_URL, {
+      console.log('Connecting to WebSocket:', baseWsUrl, {
         hasToken: !!token,
         orgId: currentOrgId || 'none',
         projectId: currentProjectId || 'none'
@@ -285,8 +305,42 @@ export function useClaudeWebSocket(authToken = null, options = {}) {
               });
               break;
 
+            case 'delta':
+              // Token-level streaming - append each token immediately
+              // This provides smoother, real-time streaming experience
+              if (!data.content) break;
+
+              setMessages(prev => {
+                const lastMsg = prev[prev.length - 1];
+                // Only append if last message is assistant and streaming
+                const canAppend = lastMsg &&
+                  lastMsg.role === 'assistant' &&
+                  lastMsg.isStreaming &&
+                  (lastMsg.type === 'text' || lastMsg.type === 'delta' || lastMsg.type === 'thinking');
+
+                if (canAppend) {
+                  return [...prev.slice(0, -1), {
+                    ...lastMsg,
+                    content: (lastMsg.content || '') + data.content,
+                    thought: undefined,
+                    type: 'text', // Normalize to text for rendering
+                    isStreaming: true
+                  }];
+                }
+                // Create new assistant message for first token
+                return [...prev, {
+                  role: 'assistant',
+                  source: 'assistant',
+                  content: data.content,
+                  type: 'text',
+                  timestamp: new Date().toISOString(),
+                  isStreaming: true
+                }];
+              });
+              break;
+
             case 'text':
-              // Text content - append to last message OR create new
+              // Text content - append to last message OR create new (block mode)
               // Skip empty text
               if (!data.content) break;
 
