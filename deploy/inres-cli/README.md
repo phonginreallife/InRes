@@ -79,7 +79,7 @@ inres push [services...] [flags]
 ```
 
 **Flags:**
-- `--registry` - Docker registry (default: `ghcr.io/inresops`)
+- `--registry` - Docker registry (default: `ghcr.io/inres`)
 - `--tag` - Image tag (default: `1.0.1`)
 - `--platforms` - Target platforms for multi-architecture builds (comma-separated)
 

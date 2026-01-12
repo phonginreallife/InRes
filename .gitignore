@@ -176,3 +176,6 @@ Icon
 .config.*.yaml
 config.*.yaml
 *.config.yaml
+# CLI binaries
+deploy/inres-cli/inres
+deploy/inres-cli/slar
