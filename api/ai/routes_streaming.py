@@ -30,6 +30,11 @@ async def verify_token(token: str) -> tuple[bool, str]:
     if not token:
         return False, "Missing authentication token"
     
+    # Development mode: allow test token
+    if token == "test" and os.getenv("ALLOW_TEST_TOKEN", "false").lower() == "true":
+        logger.warning("⚠️ Using test token - development mode only!")
+        return True, "test-user-id"
+    
     try:
         user_id = extract_user_id_from_token(token)
         if not user_id:
