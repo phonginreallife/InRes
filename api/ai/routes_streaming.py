@@ -3,6 +3,10 @@ Streaming WebSocket Routes for Token-level LLM Streaming.
 
 This module provides WebSocket endpoints that stream tokens directly
 from the Anthropic API to the frontend in real-time.
+
+HYBRID APPROACH:
+- Token streaming for text responses (fast UX)
+- MCP tool support for user-configured integrations (Confluence, Coralogix, etc.)
 """
 
 import asyncio
@@ -10,20 +14,21 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from supabase_storage import extract_user_id_from_token
+from supabase_storage import extract_user_id_from_token, get_user_mcp_servers
 
-from streaming_agent import StreamingAgent, create_streaming_agent, INCIDENT_TOOLS
+from streaming_agent import StreamingAgent, INCIDENT_TOOLS
+from mcp_streaming_client import MCPToolManager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Store active streaming sessions
-active_sessions: Dict[str, StreamingAgent] = {}
+# Store active streaming sessions with their MCP managers
+active_sessions: Dict[str, Dict[str, Any]] = {}
 
 
 async def verify_token(token: str) -> tuple[bool, str]:
@@ -41,22 +46,33 @@ async def verify_token(token: str) -> tuple[bool, str]:
         return False, "Authentication failed"
 
 
-def create_tool_executor(auth_token: str, org_id: str = None, project_id: str = None):
+def create_hybrid_tool_executor(
+    auth_token: str,
+    org_id: str = None,
+    project_id: str = None,
+    mcp_manager: Optional[MCPToolManager] = None
+):
     """
-    Create a tool executor function with the auth token and context captured.
+    Create a hybrid tool executor that handles both built-in and MCP tools.
     
-    This makes HTTP calls to the backend API for proper authentication.
+    - Built-in tools (get_incidents, etc.): HTTP calls to backend API
+    - MCP tools (mcp__*): Routed to MCP servers via subprocess
     """
     api_base = os.getenv("INRES_API_URL", "http://inres-api:8080")
     
     async def tool_executor(tool_name: str, tool_input: Dict[str, Any]) -> str:
-        logger.debug(f"Executing tool: {tool_name} with input: {tool_input}")
+        logger.info(f"Executing tool: {tool_name}")
         
+        # Route MCP tools to MCP manager
+        if tool_name.startswith("mcp__") and mcp_manager:
+            logger.info(f"Routing to MCP: {tool_name}")
+            return await mcp_manager.call_tool(tool_name, tool_input)
+        
+        # Built-in tools via HTTP
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {auth_token}",
         }
-        # Add org/project context to headers for tenant isolation
         if org_id:
             headers["X-Org-ID"] = org_id
         if project_id:
@@ -74,11 +90,9 @@ def create_tool_executor(auth_token: str, org_id: str = None, project_id: str = 
                         headers=headers,
                         params=params
                     )
-                    logger.debug(f"get_incidents response: {resp.status_code}")
                     if resp.status_code == 200:
-                        data = resp.json()
-                        return json.dumps(data, indent=2, default=str)
-                    return json.dumps({"error": f"API error: {resp.status_code}", "body": resp.text})
+                        return json.dumps(resp.json(), indent=2, default=str)
+                    return json.dumps({"error": f"API error: {resp.status_code}"})
                 
                 elif tool_name == "get_incident_details":
                     incident_id = tool_input.get("incident_id")
@@ -86,34 +100,28 @@ def create_tool_executor(auth_token: str, org_id: str = None, project_id: str = 
                         f"{api_base}/incidents/{incident_id}",
                         headers=headers
                     )
-                    logger.debug(f"get_incident_details response: {resp.status_code}")
                     if resp.status_code == 200:
                         return json.dumps(resp.json(), indent=2, default=str)
-                    return json.dumps({"error": f"Incident not found: {incident_id}", "status": resp.status_code})
+                    return json.dumps({"error": f"Incident not found: {incident_id}"})
                 
                 elif tool_name == "get_incident_stats":
                     time_range = tool_input.get("time_range", "24h")
-                    # Try the stats endpoint
                     resp = await client.get(
                         f"{api_base}/incidents/stats",
                         headers=headers,
                         params={"range": time_range}
                     )
-                    logger.debug(f"get_incident_stats response: {resp.status_code}")
                     if resp.status_code == 200:
                         return json.dumps(resp.json(), indent=2, default=str)
-                    # Fallback: get incidents and calculate stats
+                    # Fallback: calculate from incidents
                     resp = await client.get(
                         f"{api_base}/incidents",
                         headers=headers,
                         params={"limit": 100}
                     )
-                    logger.debug(f"get_incident_stats response: {resp.status_code}")
                     if resp.status_code == 200:
                         incidents = resp.json()
-                        # Calculate basic stats
                         if isinstance(incidents, list):
-                            total = len(incidents)
                             by_status = {}
                             by_severity = {}
                             for inc in incidents:
@@ -123,7 +131,7 @@ def create_tool_executor(auth_token: str, org_id: str = None, project_id: str = 
                                 by_severity[severity] = by_severity.get(severity, 0) + 1
                             return json.dumps({
                                 "time_range": time_range,
-                                "total_incidents": total,
+                                "total_incidents": len(incidents),
                                 "by_status": by_status,
                                 "by_severity": by_severity,
                             }, indent=2)
@@ -167,13 +175,19 @@ def create_tool_executor(auth_token: str, org_id: str = None, project_id: str = 
 @router.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
     """
-    WebSocket endpoint for token-level streaming.
+    WebSocket endpoint for token-level streaming with MCP support.
     
     Protocol:
     1. Client connects with ?token=JWT
-    2. Client sends: {"prompt": "...", "session_id": "..."}
-    3. Server streams: {"type": "delta", "content": "token"}
-    4. Server sends: {"type": "complete"} when done
+    2. Server loads user's MCP servers and sends session info
+    3. Client sends: {"prompt": "...", "session_id": "..."}
+    4. Server streams: {"type": "delta", "content": "token"}
+    5. Server sends: {"type": "complete"} when done
+    
+    MCP Integration:
+    - User's MCP servers are loaded from database
+    - MCP tools are available alongside built-in tools
+    - Tool calls are routed appropriately (HTTP or MCP protocol)
     """
     # Get token and context from query params
     token = websocket.query_params.get("token")
@@ -194,18 +208,59 @@ async def websocket_stream(websocket: WebSocket):
     # Generate session ID
     session_id = str(uuid.uuid4())
     
-    # Create streaming agent for this session
-    agent = create_streaming_agent(include_tools=True)
-    active_sessions[session_id] = agent
+    # Initialize MCP tool manager
+    mcp_manager = MCPToolManager()
+    mcp_tools = []
     
-    # Create tool executor with auth token and org context
-    tool_executor = create_tool_executor(token, org_id, project_id)
+    try:
+        # Load user's MCP servers from database
+        logger.info(f"Loading MCP servers for user: {user_id}")
+        user_mcp_config = await get_user_mcp_servers(auth_token=token, user_id=user_id)
+        
+        if user_mcp_config:
+            logger.info(f"Found {len(user_mcp_config)} MCP server configs")
+            started = await mcp_manager.add_servers_from_config(user_mcp_config)
+            logger.info(f"Started {started} MCP servers")
+            
+            # Get tools from MCP servers
+            mcp_tools = mcp_manager.get_all_tools()
+            logger.info(f"Loaded {len(mcp_tools)} MCP tools: {[t['name'] for t in mcp_tools]}")
+        else:
+            logger.info("No MCP servers configured for user")
+            
+    except Exception as e:
+        logger.error(f"Failed to load MCP servers: {e}", exc_info=True)
+    
+    # Combine built-in tools with MCP tools
+    all_tools = INCIDENT_TOOLS.copy()
+    all_tools.extend(mcp_tools)
+    
+    # Create streaming agent with all tools
+    agent = StreamingAgent(
+        tools=all_tools,
+        system_prompt="""You are an AI assistant specialized in incident response and DevOps.
+You help users manage incidents, analyze alerts, and troubleshoot issues.
+You have access to various tools including incident management and user-configured integrations.
+Be concise but thorough in your responses."""
+    )
+    
+    # Store session info
+    active_sessions[session_id] = {
+        "agent": agent,
+        "mcp_manager": mcp_manager,
+        "user_id": user_id
+    }
+    
+    # Create hybrid tool executor
+    tool_executor = create_hybrid_tool_executor(token, org_id, project_id, mcp_manager)
     
     # Send session info to client
     await websocket.send_json({
         "type": "session_created",
         "session_id": session_id,
-        "message": "Streaming session established"
+        "message": "Streaming session established",
+        "mcp_servers": mcp_manager.server_count,
+        "total_tools": len(all_tools)
     })
     
     # Output queue for streaming events
@@ -242,7 +297,7 @@ async def websocket_stream(websocket: WebSocket):
                 
                 # Handle interrupt
                 if msg_type == "interrupt":
-                    logger.info("🛑 Interrupt requested")
+                    logger.info("Interrupt requested")
                     agent.interrupt()
                     if stream_task and not stream_task.done():
                         stream_task.cancel()
@@ -303,24 +358,35 @@ async def websocket_stream(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}", exc_info=True)
     finally:
         # Cleanup
+        logger.info(f"Cleaning up session: {session_id}")
+        
         if stream_task and not stream_task.done():
             stream_task.cancel()
         if sender_task and not sender_task.done():
-            await output_queue.put(None)  # Signal sender to stop
+            await output_queue.put(None)
             sender_task.cancel()
+        
+        # Shutdown MCP servers
+        await mcp_manager.shutdown()
         
         # Remove session
         if session_id in active_sessions:
             del active_sessions[session_id]
         
-        logger.info(f"🧹 Cleaned up session: {session_id}")
+        logger.info(f"Session cleanup complete: {session_id}")
 
 
 @router.get("/streaming/status")
 async def streaming_status():
     """Get status of streaming service."""
+    total_mcp_servers = sum(
+        s.get("mcp_manager", MCPToolManager()).server_count 
+        for s in active_sessions.values()
+    )
+    
     return {
         "status": "ok",
         "active_sessions": len(active_sessions),
-        "tools_available": len(INCIDENT_TOOLS)
+        "builtin_tools": len(INCIDENT_TOOLS),
+        "active_mcp_servers": total_mcp_servers
     }
