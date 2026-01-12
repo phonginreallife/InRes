@@ -46,10 +46,23 @@ async def verify_token(token: str) -> tuple[bool, str]:
         return False, "Authentication failed"
 
 
+class ToolContext:
+    """Mutable context for tool execution that can be updated per message."""
+    def __init__(self, org_id: str = None, project_id: str = None):
+        self.org_id = org_id
+        self.project_id = project_id
+    
+    def update(self, org_id: str = None, project_id: str = None):
+        """Update context with new values (only if provided)."""
+        if org_id:
+            self.org_id = org_id
+        if project_id:
+            self.project_id = project_id
+
+
 def create_hybrid_tool_executor(
     auth_token: str,
-    org_id: str = None,
-    project_id: str = None,
+    context: ToolContext,
     mcp_manager: Optional[MCPToolManager] = None
 ):
     """
@@ -57,11 +70,14 @@ def create_hybrid_tool_executor(
     
     - Built-in tools (get_incidents, etc.): HTTP calls to backend API
     - MCP tools (mcp__*): Routed to MCP servers via subprocess
+    
+    The context object is mutable and can be updated per message to support
+    dynamic org_id/project_id from the message body.
     """
     api_base = os.getenv("INRES_API_URL", "http://inres-api:8080")
     
     async def tool_executor(tool_name: str, tool_input: Dict[str, Any]) -> str:
-        logger.info(f"Executing tool: {tool_name}")
+        logger.info(f"Executing tool: {tool_name} with context org_id={context.org_id}, project_id={context.project_id}")
         
         # Route MCP tools to MCP manager
         if tool_name.startswith("mcp__") and mcp_manager:
@@ -73,10 +89,10 @@ def create_hybrid_tool_executor(
             "Content-Type": "application/json",
             "Authorization": f"Bearer {auth_token}",
         }
-        if org_id:
-            headers["X-Org-ID"] = org_id
-        if project_id:
-            headers["X-Project-ID"] = project_id
+        if context.org_id:
+            headers["X-Org-ID"] = context.org_id
+        if context.project_id:
+            headers["X-Project-ID"] = context.project_id
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -96,13 +112,21 @@ def create_hybrid_tool_executor(
                 
                 elif tool_name == "get_incident_details":
                     incident_id = tool_input.get("incident_id")
+                    logger.info(f"Fetching incident {incident_id} with headers: X-Org-ID={headers.get('X-Org-ID')}, X-Project-ID={headers.get('X-Project-ID')}")
                     resp = await client.get(
                         f"{api_base}/incidents/{incident_id}",
                         headers=headers
                     )
                     if resp.status_code == 200:
                         return json.dumps(resp.json(), indent=2, default=str)
-                    return json.dumps({"error": f"Incident not found: {incident_id}"})
+                    # Log full error for debugging
+                    error_body = resp.text
+                    logger.error(f"Failed to fetch incident {incident_id}: status={resp.status_code}, body={error_body}")
+                    return json.dumps({
+                        "error": f"Incident not found: {incident_id}",
+                        "status_code": resp.status_code,
+                        "details": error_body[:500] if error_body else None
+                    })
                 
                 elif tool_name == "get_incident_stats":
                     time_range = tool_input.get("time_range", "24h")
@@ -251,7 +275,23 @@ async def websocket_stream(websocket: WebSocket):
         tools=all_tools,
         system_prompt="""You are an AI assistant specialized in incident response and DevOps.
 You help users manage incidents, analyze alerts, and troubleshoot issues.
-You have access to various tools including incident management and user-configured integrations.
+
+## Tool Selection Guidelines
+
+**For InRes Incident Operations (ALWAYS use built-in tools):**
+- Use `get_incidents` to list incidents from InRes
+- Use `get_incident_details` to fetch a specific incident by its InRes UUID
+- Use `acknowledge_incident` to acknowledge an InRes incident
+- Use `resolve_incident` to resolve an InRes incident
+- Use `get_incident_stats` for incident statistics
+
+**For External Integrations (MCP tools prefixed with mcp__):**
+- Use Coralogix MCP tools for querying logs, searching logs, or log-based investigation
+- Use Confluence MCP tools for documentation lookup
+- Use other MCP tools for their respective external services
+
+**Important:** InRes incident UUIDs (like 1393de28-1916-4f9f-bc2f-36e990a21967) should ONLY be used with built-in InRes tools (get_incident_details, acknowledge_incident, resolve_incident). Do NOT pass InRes UUIDs to external MCP tools like Coralogix.
+
 Be concise but thorough in your responses."""
     )
     
@@ -262,8 +302,11 @@ Be concise but thorough in your responses."""
         "user_id": user_id
     }
     
-    # Create hybrid tool executor
-    tool_executor = create_hybrid_tool_executor(token, org_id, project_id, mcp_manager)
+    # Create mutable tool context (can be updated per message)
+    tool_context = ToolContext(org_id=org_id, project_id=project_id)
+    
+    # Create hybrid tool executor with mutable context
+    tool_executor = create_hybrid_tool_executor(token, tool_context, mcp_manager)
     
     # Send session info to client
     await websocket.send_json({
@@ -336,6 +379,14 @@ Be concise but thorough in your responses."""
                         "error": "Empty prompt"
                     })
                     continue
+                
+                # Update context with org_id/project_id from message body (if provided)
+                # This allows the frontend to send context per message
+                msg_org_id = message.get("org_id")
+                msg_project_id = message.get("project_id")
+                if msg_org_id or msg_project_id:
+                    tool_context.update(org_id=msg_org_id, project_id=msg_project_id)
+                    logger.info(f"Updated tool context: org_id={tool_context.org_id}, project_id={tool_context.project_id}")
                 
                 logger.info(f"Received prompt: {prompt[:50]}...")
                 

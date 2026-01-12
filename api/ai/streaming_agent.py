@@ -450,11 +450,11 @@ class StreamingAgent:
             return recovery
 
 
-# Pre-defined tools for incident management
+# Pre-defined tools for InRes incident management (NOT for external services)
 INCIDENT_TOOLS = [
     {
         "name": "get_incidents",
-        "description": "Get a list of incidents. Can filter by status, severity, time range.",
+        "description": "Get a list of incidents from the InRes platform. Use this to browse and search for InRes incidents. Can filter by status, severity, time range.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -478,13 +478,13 @@ INCIDENT_TOOLS = [
     },
     {
         "name": "get_incident_details",
-        "description": "Get detailed information about a specific incident by ID.",
+        "description": "Get detailed information about a specific InRes incident by its UUID. Use this tool (NOT external MCP tools) when you have an InRes incident ID like '1393de28-1916-4f9f-bc2f-36e990a21967'. This fetches incident details from the InRes database.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "incident_id": {
                     "type": "string",
-                    "description": "The UUID of the incident"
+                    "description": "The InRes incident UUID (e.g., '1393de28-1916-4f9f-bc2f-36e990a21967')"
                 }
             },
             "required": ["incident_id"]
@@ -492,13 +492,13 @@ INCIDENT_TOOLS = [
     },
     {
         "name": "acknowledge_incident",
-        "description": "Acknowledge an incident to indicate someone is working on it.",
+        "description": "Acknowledge an InRes incident to indicate someone is working on it. Use the InRes incident UUID.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "incident_id": {
                     "type": "string",
-                    "description": "The UUID of the incident to acknowledge"
+                    "description": "The InRes incident UUID to acknowledge"
                 },
                 "note": {
                     "type": "string",
@@ -510,13 +510,13 @@ INCIDENT_TOOLS = [
     },
     {
         "name": "resolve_incident",
-        "description": "Resolve an incident to mark it as fixed.",
+        "description": "Resolve an InRes incident to mark it as fixed. Use the InRes incident UUID.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "incident_id": {
                     "type": "string",
-                    "description": "The UUID of the incident to resolve"
+                    "description": "The InRes incident UUID to resolve"
                 },
                 "resolution": {
                     "type": "string",
