@@ -194,6 +194,7 @@ type PagerDutyIncidentData struct {
 	Urgency          string                    `json:"urgency"` // high, low
 	Description      string                    `json:"description"`
 	ResolveReason    string                    `json:"resolve_reason"`
+	CustomDetails    map[string]interface{}    `json:"custom_details"` // Custom fields from PagerDuty alerts
 }
 
 type PagerDutyService struct {
@@ -508,12 +509,26 @@ func (p *PagerDutyWebhook) ToProcessedAlert() ProcessedAlert {
 		fingerprint = data.ID
 	}
 
+	// Build full description including custom details
+	description := data.Description
+	if len(data.CustomDetails) > 0 {
+		var customDetailsText strings.Builder
+		if description != "" {
+			customDetailsText.WriteString(description)
+			customDetailsText.WriteString("\n\n---\n**Custom Details:**\n")
+		}
+		for key, value := range data.CustomDetails {
+			customDetailsText.WriteString(fmt.Sprintf("- **%s**: %v\n", key, value))
+		}
+		description = customDetailsText.String()
+	}
+
 	alert := ProcessedAlert{
 		AlertName:   data.Title,
 		Severity:    severity,
 		Status:      status,
 		Summary:     data.Title,
-		Description: data.Description,
+		Description: description,
 		Fingerprint: fingerprint,
 		Priority:    getPagerDutyPriorityString(data.Priority),
 		Labels: map[string]interface{}{
@@ -533,6 +548,11 @@ func (p *PagerDutyWebhook) ToProcessedAlert() ProcessedAlert {
 			"resolve_reason":    data.ResolveReason,
 		},
 		StartsAt: data.CreatedAt,
+	}
+
+	// Add custom details to annotations for structured access
+	if len(data.CustomDetails) > 0 {
+		alert.Annotations["custom_details"] = data.CustomDetails
 	}
 
 	// Add assignees to labels
