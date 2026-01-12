@@ -1,400 +1,318 @@
-# ⚡ InRes — Intelligent Incident Response
+# InRes
 
-**AI-Native On-Call & Incident Management Platform**
+### AI-Native Incident Response Platform
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://go.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python)](https://python.org)
 
-> 💡 *Inspired by [inres](https://github.com/inresOps/inres) — Smart Live Alert & Response*
-
----
+InRes is an open-source on-call and incident management platform with an integrated AI agent that can investigate, diagnose, and help remediate issues — with human-in-the-loop approval for sensitive actions.
 
 <p align="center">
   <img src="images/dashboard.png" alt="InRes Dashboard" width="800"/>
 </p>
 
-## 🎯 What is InRes?
+---
 
-InRes is an **open-source, AI-native incident response platform** that goes beyond simple alerting. It combines traditional on-call features with an autonomous AI agent that can investigate, diagnose, and remediate issues — all under your guidance with human-in-the-loop approval workflows.
+## Why InRes?
+
+| Traditional Tools | InRes |
+|-------------------|-------|
+| Alert fatigue from noise | AI-powered deduplication & analysis |
+| Manual investigation | AI agent investigates for you |
+| Copy-paste runbooks | AI executes with approval |
+| Context switching | Everything in one place |
+| Expensive per-seat pricing | Open source, self-hosted |
 
 ---
 
-## ✨ Current Features
+## Features
 
-### 🚨 Incident Management
-| Feature | Description |
-|---------|-------------|
-| **Full Lifecycle** | Triggered → Acknowledged → Resolved with complete audit trail |
-| **Severity Levels** | Critical, High, Medium, Low with visual indicators |
-| **Priority Mapping** | P1-P5 priority system compatible with Datadog/PagerDuty |
-| **Smart Deduplication** | Alert fingerprinting prevents duplicate incidents |
-| **Auto-Resolution** | Incidents auto-resolve when monitoring tools send recovery alerts |
-| **Real-time Dashboard** | Live incident feed with filtering and search |
-| **Incident Analytics** | AI-powered incident insights and pattern detection |
+### Incident Management
+- **Full Lifecycle** — Triggered → Acknowledged → Resolved with audit trail
+- **Smart Deduplication** — Fingerprint-based alert grouping
+- **Auto-Resolution** — Recovery alerts automatically resolve incidents
+- **Priority Mapping** — P1-P5 compatible with PagerDuty/Datadog
 
-### 📅 On-Call Scheduling
-| Feature | Description |
-|---------|-------------|
-| **Visual Timeline** | Interactive schedule visualization |
-| **Rotation Management** | Create and manage on-call rotations |
-| **Schedule Overrides** | Temporary schedule adjustments for vacations, swaps |
-| **Groups & Teams** | Organize responders into logical units |
-| **Who's On-Call** | Instant lookup for current on-call engineer |
+### On-Call & Escalation
+- **Visual Scheduling** — Interactive timeline with drag-and-drop
+- **Rotation Management** — Weekly, daily, custom rotations
+- **Schedule Overrides** — Vacation swaps, temporary changes
+- **Multi-Level Escalation** — Time-based escalation chains
+- **Auto-Assignment** — Route incidents to the right person
 
-### 📈 Escalation Policies
-| Feature | Description |
-|---------|-------------|
-| **Multi-level Escalation** | Define escalation chains with time-based triggers |
-| **Auto-Assignment** | Automatically assign incidents based on escalation policy |
-| **PGMQ Workers** | Reliable async escalation processing with PostgreSQL Message Queue |
+### AI Agent (Claude-Powered)
+- **Real-time Chat** — WebSocket streaming responses
+- **Tool Execution** — Query systems, run commands, analyze logs
+- **Human-in-the-Loop** — Approve sensitive actions before execution
+- **Memory & Context** — Persistent conversations across sessions
+- **MCP Integration** — Extensible tool ecosystem
 
-### 🤖 AI-Powered (Claude Agent)
-| Feature | Description |
-|---------|-------------|
-| **Real-time Chat** | WebSocket-based AI assistant for incident investigation |
-| **MCP Integration** | Model Context Protocol for extensible tool capabilities |
-| **Tool Approval System** | Human-in-the-loop for sensitive operations |
-| **Memory Persistence** | Context-aware conversations across sessions |
-| **Custom Skills** | Upload and manage AI skills via marketplace |
-| **Incident Analysis** | AI-generated insights and root cause suggestions |
-| **Audit Logging** | Complete audit trail of AI actions |
+### Integrations
 
-### 🔌 Integrations
+**Alerting Sources**
+- Prometheus/AlertManager
+- Datadog
+- Grafana
+- AWS CloudWatch
+- PagerDuty
+- Coralogix
+- Generic Webhook
 
-#### Monitoring & Alerting
-| Integration | Status | Features |
-|------------|--------|----------|
-| **Prometheus/AlertManager** | ✅ Supported | Native webhook, severity mapping, fingerprint deduplication |
-| **Datadog** | ✅ Supported | P1-P5 priority mapping, auto-resolution on recovery |
-| **Grafana** | ✅ Supported | State-based severity, dashboard linking |
-| **AWS CloudWatch** | ✅ Supported | SNS integration, alarm state mapping |
-| **PagerDuty** | ✅ Supported | Incident sync, urgency mapping |
-| **Coralogix** | ✅ Supported | Log-based alerts, application/subsystem tagging |
-| **Generic Webhook** | ✅ Supported | Custom JSON payload support |
+**Uptime Monitoring**
+- HTTP/HTTPS health checks
+- Response time tracking
+- SSL certificate monitoring
+- UptimeRobot, Cloudflare Workers, Checkly
 
-#### Uptime Monitoring Sources
-| Integration | Status | Features |
-|------------|--------|----------|
-| **UptimeRobot** | ✅ Supported | Webhook integration, status sync |
-| **Cloudflare Workers** | ✅ Supported | Edge-based health checks, global monitoring |
-| **Checkly** | ✅ Supported | Synthetic monitoring, API checks |
+**Communication**
+- Slack (interactive notifications)
 
-#### Communication
-| Integration | Status | Features |
-|------------|--------|----------|
-| **Slack** | ✅ Supported | Interactive notifications, incident actions from Slack |
-
-### 🏢 Multi-Tenancy & Authorization
-| Feature | Description |
-|---------|-------------|
-| **Organizations** | Full multi-tenant isolation |
-| **Projects** | Organize resources within organizations |
-| **ReBAC** | Relationship-Based Access Control for fine-grained permissions |
-| **Roles** | Owner, Admin, Member, Viewer with hierarchical inheritance |
-| **JWT Auth** | Supabase Auth integration with secure token verification |
-
-### 📊 Uptime Monitoring
-| Feature | Description |
-|---------|-------------|
-| **HTTP/HTTPS Checks** | Monitor endpoint availability with configurable intervals |
-| **Response Time Tracking** | Track and alert on slow responses (>5s threshold) |
-| **SSL Certificate Monitoring** | Automatic SSL expiry alerts (30-day warning) |
-| **Uptime Statistics** | 1h, 24h, 7d, 30d uptime percentages and metrics |
-| **Auto-Incident Creation** | Automatically creates incidents on downtime detection |
-| **Service Dashboard** | Real-time status overview with historical data |
-
-### 🛠 Service Catalog
-| Feature | Description |
-|---------|-------------|
-| **Service Registry** | Manage services with escalation policies |
-| **Integration Mapping** | Connect integrations to services |
-| **Routing Conditions** | Alert routing based on severity, labels, alertname |
-| **Health Monitoring** | Integration heartbeat and health status |
+### Multi-Tenancy
+- Organizations & Projects
+- Role-Based Access (Owner, Admin, Member, Viewer)
+- Relationship-Based Access Control (ReBAC)
+- JWT authentication via Supabase
 
 ---
 
-## 🛠 Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| **Backend API** | Go (Gin) + PostgreSQL |
-| **AI Agent** | Python (FastAPI) + Claude SDK + MCP |
-| **Frontend** | Next.js 15 + React 19 + Tailwind CSS |
-| **Auth** | Supabase Auth + JWT |
-| **Database** | Supabase (PostgreSQL) + PGMQ |
-| **Workers** | Go (escalation) + Python (Slack) |
-
----
-
-## 🏗 Architecture
-<p align="center">
-  <img src="images/monitoring_source.png" alt="InRes Dashboard" width="800"/>
-</p>
-
-
-
-</details>
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
 - Anthropic API key (for AI features)
-- Supabase project (or local Supabase)
 
-### Docker Compose (Recommended)
+### 1. Clone & Configure
 
 ```bash
-# Clone the repository
 git clone https://github.com/phonginreallife/InRes.git
 cd InRes
 
-# Setup configuration
+# Setup deployment directory
 mkdir -p ../inres-project
 cp -r deploy/docker ../inres-project/
+```
+
+### 2. Create Environment File
+
+```bash
+cat > ../inres-project/docker/.env << 'EOF'
+ANTHROPIC_API_KEY=sk-ant-your-key
+DATABASE_URL=postgresql://postgres:postgres@supabase_db_supabase:5432/postgres
+EOF
+```
+
+### 3. Configure Application
+
+```bash
 cp ../inres-project/docker/volumes/config/cfg.ex.yaml \
    ../inres-project/docker/volumes/config/dev.config.yaml
 
-# Configure environment
-cat > ../inres-project/docker/.env << 'EOF'
-ANTHROPIC_API_KEY=your-anthropic-api-key
-SUPABASE_URL=your-supabase-url
-SUPABASE_ANON_KEY=your-supabase-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
-DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-EOF
+# Edit dev.config.yaml with your Supabase credentials
+```
 
-# Start all services
+### 4. Start Services
+
+```bash
 cd ../inres-project/docker
 docker compose up -d
 ```
 
-**Access:** http://localhost:8080
+### 5. Access
 
-### Kubernetes (Helm)
-
-```bash
-# Clone & setup
-git clone https://github.com/phonginreallife/InRes.git
-cp -r InRes/deploy/helm ./inres-helm
-cd inres-helm/inres
-
-# Create secrets
-kubectl create secret generic inres-config --from-file=config.yaml
-
-# Deploy
-helm install inres . -f values.yaml
-```
-
-See [Helm docs](deploy/helm/inres/README.md) for advanced configuration.
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:8000 |
+| **API** | http://localhost:8080 |
+| **AI Agent** | http://localhost:8002 |
 
 ---
 
-## 🔧 Development
+## Architecture
 
-### Backend (Go API)
+```
+                    ┌─────────────────┐
+                    │   Frontend      │
+                    │   (Next.js)     │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │   Kong Gateway  │
+                    │     :8000       │
+                    └────────┬────────┘
+              ┌──────────────┼──────────────┐
+              │              │              │
+     ┌────────▼────┐  ┌──────▼──────┐  ┌────▼────────┐
+     │   Go API    │  │  AI Agent   │  │   Workers   │
+     │   :8080     │  │   :8002     │  │  (Slack,    │
+     └──────┬──────┘  └──────┬──────┘  │  Escalation)│
+            │                │         └─────────────┘
+            │         ┌──────▼──────┐
+            │         │  Anthropic  │
+            │         │  Claude API │
+            │         └─────────────┘
+     ┌──────▼──────────────────────┐
+     │        Supabase             │
+     │  (PostgreSQL + Auth + PGMQ) │
+     └─────────────────────────────┘
+```
+
+---
+
+## Development
+
+### Backend (Go)
 ```bash
 cd api
-
-# Install air for hot reload
 go install github.com/cosmtrek/air@latest
-
-# Run with hot reload
-air
-
-# Or run directly
-go run cmd/server/main.go
-# Runs on http://localhost:8080
+air  # Hot reload on http://localhost:8080
 ```
 
 ### AI Agent (Python)
 ```bash
 cd api/ai
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# Run AI agent
-export inres_CONFIG_PATH=../cmd/server/dev.config.yaml
-python claude_agent_api_v1.py
-# Runs on http://localhost:8002
+python claude_agent_api_v1.py  # http://localhost:8002
 ```
 
 ### Frontend (Next.js)
 ```bash
 cd frontend/inres
-
-# Install dependencies
 npm install
-
-# Run development server
-npm run dev
-# Runs on http://localhost:3000
+npm run dev  # http://localhost:3000
 ```
 
-### Database Migrations
+### Database
 ```bash
 cd supabase
-
-# Link to Supabase project
 supabase link
-
-# Push migrations
 supabase db push
 ```
 
 ---
 
-## 🔗 Webhook Endpoints
+## Webhook Configuration
 
-### Integration Webhook URLs
+Configure your monitoring tools to send alerts to InRes:
 
-| Integration | Webhook URL |
-|------------|-------------|
-| Prometheus | `POST /webhook/prometheus/{integration_id}` |
-| Datadog | `POST /webhook/datadog/{integration_id}` |
-| Grafana | `POST /webhook/grafana/{integration_id}` |
-| AWS CloudWatch | `POST /webhook/aws/{integration_id}` |
-| PagerDuty | `POST /webhook/pagerduty/{integration_id}` |
-| Coralogix | `POST /webhook/coralogix/{integration_id}` |
-| Generic | `POST /webhook/webhook/{integration_id}` |
+```
+POST /webhook/{provider}/{integration_id}
+```
 
-### Example: Prometheus AlertManager Configuration
+| Provider | Webhook Path |
+|----------|--------------|
+| Prometheus | `/webhook/prometheus/{id}` |
+| Datadog | `/webhook/datadog/{id}` |
+| Grafana | `/webhook/grafana/{id}` |
+| AWS CloudWatch | `/webhook/aws/{id}` |
+| PagerDuty | `/webhook/pagerduty/{id}` |
+| Coralogix | `/webhook/coralogix/{id}` |
+| Generic | `/webhook/webhook/{id}` |
 
+**Example: Prometheus AlertManager**
 ```yaml
-# alertmanager.yml
 receivers:
   - name: 'inres'
     webhook_configs:
-      - url: 'https://your-inres-domain/webhook/prometheus/YOUR_INTEGRATION_ID'
+      - url: 'https://your-domain/webhook/prometheus/YOUR_ID'
         send_resolved: true
-
-route:
-  receiver: 'inres'
-  group_by: ['alertname', 'instance']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
 ```
 
 ---
 
-## 📋 API Overview
+## API Reference
 
-### Core Endpoints
+### Incidents
+```
+GET    /incidents              List incidents
+POST   /incidents              Create incident
+GET    /incidents/:id          Get incident
+PUT    /incidents/:id/ack      Acknowledge
+PUT    /incidents/:id/resolve  Resolve
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| **Incidents** |||
-| GET | `/api/incidents` | List incidents (with ReBAC filtering) |
-| POST | `/api/incidents` | Create incident |
-| GET | `/api/incidents/:id` | Get incident details |
-| PUT | `/api/incidents/:id/acknowledge` | Acknowledge incident |
-| PUT | `/api/incidents/:id/resolve` | Resolve incident |
-| **Schedules** |||
-| GET | `/api/schedules` | List schedules |
-| GET | `/api/schedules/timeline` | Get schedule timeline |
-| POST | `/api/overrides` | Create schedule override |
-| **Integrations** |||
-| GET | `/api/integrations` | List integrations |
-| POST | `/api/integrations` | Create integration |
-| GET | `/api/integrations/health` | Get integration health |
-| **Uptime Monitoring** |||
-| GET | `/api/uptime/services` | List monitored services |
-| POST | `/api/uptime/services` | Create monitored service |
-| GET | `/api/uptime/services/:id` | Get service details |
-| POST | `/api/uptime/services/:id/check` | Trigger manual check |
-| GET | `/api/uptime/services/:id/stats` | Get uptime statistics |
-| GET | `/api/uptime/services/:id/history` | Get check history |
-| GET | `/api/uptime/dashboard` | Get uptime dashboard |
-| **Organizations** |||
-| GET | `/api/orgs` | List user organizations |
-| POST | `/api/orgs` | Create organization |
-| GET | `/api/orgs/:id/members` | List organization members |
-| **Projects** |||
-| GET | `/api/projects` | List user projects |
-| POST | `/api/projects` | Create project |
+### Schedules
+```
+GET    /schedules              List schedules
+GET    /schedules/timeline     Get timeline
+POST   /overrides              Create override
+```
 
-### AI Agent Endpoints
+### Uptime
+```
+GET    /uptime/services        List monitors
+POST   /uptime/services        Create monitor
+GET    /uptime/services/:id    Get status
+GET    /uptime/dashboard       Dashboard data
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| WS | `/ws/chat` | WebSocket for AI chat |
-| GET | `/conversations` | List conversations |
-| POST | `/conversations` | Create conversation |
-| GET | `/mcp/servers` | List MCP servers |
-| POST | `/mcp/servers` | Add MCP server |
+### AI Agent
+```
+WS     /ws/chat                AI chat (block mode)
+WS     /ws/stream              AI chat (streaming mode)
+GET    /conversations          List conversations
+GET    /mcp/servers            List MCP tools
+```
 
 ---
 
-## 🔐 Security Features
+## Security
 
-- **JWT Verification** — Supabase Auth with secure token validation
-- **ReBAC** — Relationship-Based Access Control for tenant isolation
-- **AI Tool Approval** — Human-in-the-loop for sensitive AI actions
-- **Rate Limiting** — Configurable rate limits on AI endpoints
-- **CORS** — Configurable allowed origins
-- **Audit Logging** — Complete trail of actions and AI tool usage
-- **Parameterized Queries** — SQL injection protection
+- **Authentication** — Supabase JWT with RS256/ES256 verification
+- **Authorization** — ReBAC for fine-grained tenant isolation
+- **AI Safety** — Human approval required for sensitive tool execution
+- **Audit Trail** — Complete logging of all actions and AI operations
+- **SQL Injection** — Parameterized queries throughout
 
 ---
 
-## 📈 Roadmap
+## Roadmap
 
-- [x] Core incident management
-- [x] On-call scheduling with overrides
-- [x] Multi-level escalation policies
-- [x] AI-powered incident assistant
-- [x] Monitoring integrations (Prometheus, Datadog, Grafana, AWS, etc.)
-- [x] Slack integration
-- [x] Multi-tenant organizations
-- [x] ReBAC authorization
+- [x] Incident management with lifecycle
+- [x] On-call scheduling & escalations
+- [x] AI-powered investigation assistant
+- [x] 7+ monitoring integrations
 - [x] Uptime monitoring with SSL tracking
+- [x] Multi-tenant organizations
+- [x] Token-level AI streaming
 - [ ] Advanced routing rules (regex, CEL)
 - [ ] Runbook automation
-- [ ] Mobile app (iOS/Android)
-- [ ] Status page integration
+- [ ] Mobile app
+- [ ] Public status pages
 - [ ] Post-mortem templates
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-[AGPLv3](LICENSE) — Self-host freely, customize as needed, no vendor lock-in.
+```bash
+# Fork, then:
+git checkout -b feature/your-feature
+git commit -m "Add your feature"
+git push origin feature/your-feature
+# Open a Pull Request
+```
 
 ---
 
-## 🙏 Acknowledgements
+## License
 
-- [inres](https://github.com/inresOps/inres) — Original inspiration
+[AGPLv3](LICENSE) — Self-host freely, no vendor lock-in.
+
+---
+
+## Acknowledgements
+
+- [slar](https://github.com/SlarOps/slar) — Original inspiration
 - [Anthropic Claude](https://anthropic.com) — AI capabilities
 - [Supabase](https://supabase.com) — Auth & Database
-- [Gin](https://gin-gonic.com) — Go HTTP framework
-- [Next.js](https://nextjs.org) — React framework
 
 ---
 
 <p align="center">
-  <b>Built with ❤️ for SREs and DevOps teams</b>
+  <strong>Built for SREs and DevOps teams who are tired of alert fatigue.</strong>
 </p>
