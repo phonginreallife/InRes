@@ -18,11 +18,21 @@ const USE_TOKEN_STREAMING = process.env.NEXT_PUBLIC_USE_TOKEN_STREAMING === 'tru
 // Build WebSocket URL dynamically (handles SSR where window is undefined)
 function getWebSocketUrl() {
   if (typeof window === 'undefined') return '';
-  const host = window.location.host;
+  
+  // Check for explicit WS URL override
+  if (process.env.NEXT_PUBLIC_AI_WS_URL) {
+    console.log(`[WebSocket] Using configured URL: ${process.env.NEXT_PUBLIC_AI_WS_URL}`);
+    return process.env.NEXT_PUBLIC_AI_WS_URL;
+  }
+  
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  // Use Kong gateway (port 8000) for WebSocket connections
+  const wsPort = process.env.NEXT_PUBLIC_WS_PORT || '8000';
+  const host = window.location.hostname + ':' + wsPort;
   const endpoint = USE_TOKEN_STREAMING ? '/ws/stream' : '/ws/chat';
-  console.log(`[WebSocket] Using ${USE_TOKEN_STREAMING ? 'TOKEN' : 'BLOCK'} streaming: ${endpoint}`);
-  return process.env.NEXT_PUBLIC_AI_WS_URL || `${protocol}://${host}${endpoint}`;
+  
+  console.log(`[WebSocket] Using ${USE_TOKEN_STREAMING ? 'TOKEN' : 'BLOCK'} streaming: ${protocol}://${host}${endpoint}`);
+  return `${protocol}://${host}${endpoint}`;
 }
 
 /**
