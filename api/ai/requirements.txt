@@ -44,5 +44,6 @@ watchfiles==1.1.1
 websockets==15.0.1
 yarl==1.22.0
 supabase==2.23.0
+anthropic>=0.40.0
 
 psycopg2-binary

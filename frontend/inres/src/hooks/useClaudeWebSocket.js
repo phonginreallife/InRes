@@ -285,8 +285,42 @@ export function useClaudeWebSocket(authToken = null, options = {}) {
               });
               break;
 
+            case 'delta':
+              // Token-level streaming - append each token immediately
+              // This provides smoother, real-time streaming experience
+              if (!data.content) break;
+
+              setMessages(prev => {
+                const lastMsg = prev[prev.length - 1];
+                // Only append if last message is assistant and streaming
+                const canAppend = lastMsg &&
+                  lastMsg.role === 'assistant' &&
+                  lastMsg.isStreaming &&
+                  (lastMsg.type === 'text' || lastMsg.type === 'delta' || lastMsg.type === 'thinking');
+
+                if (canAppend) {
+                  return [...prev.slice(0, -1), {
+                    ...lastMsg,
+                    content: (lastMsg.content || '') + data.content,
+                    thought: undefined,
+                    type: 'text', // Normalize to text for rendering
+                    isStreaming: true
+                  }];
+                }
+                // Create new assistant message for first token
+                return [...prev, {
+                  role: 'assistant',
+                  source: 'assistant',
+                  content: data.content,
+                  type: 'text',
+                  timestamp: new Date().toISOString(),
+                  isStreaming: true
+                }];
+              });
+              break;
+
             case 'text':
-              // Text content - append to last message OR create new
+              // Text content - append to last message OR create new (block mode)
               // Skip empty text
               if (!data.content) break;
 
