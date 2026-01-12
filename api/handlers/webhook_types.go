@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -479,14 +480,18 @@ func (p *PagerDutyWebhook) ToProcessedAlert() ProcessedAlert {
 	data := p.Event.Data
 
 	// Map PagerDuty status to our status
+	// Check both event_type (e.g., "incident.resolved") and data.status
 	status := "firing"
-	switch strings.ToLower(data.Status) {
-	case "resolved":
+	eventType := strings.ToLower(p.Event.EventType)
+	dataStatus := strings.ToLower(data.Status)
+
+	// event_type takes precedence (incident.resolved, incident.triggered, etc.)
+	if strings.Contains(eventType, "resolved") || dataStatus == "resolved" {
 		status = "resolved"
-	case "acknowledged":
-		status = "firing" // Still active, just acknowledged
-	case "triggered":
+	} else if strings.Contains(eventType, "triggered") || dataStatus == "triggered" {
 		status = "firing"
+	} else if strings.Contains(eventType, "acknowledged") || dataStatus == "acknowledged" {
+		status = "firing" // Still active, just acknowledged
 	}
 
 	// Map urgency/priority to severity
@@ -497,13 +502,19 @@ func (p *PagerDutyWebhook) ToProcessedAlert() ProcessedAlert {
 		severity = mapPagerDutyUrgency(data.Urgency)
 	}
 
+	// Generate robust fingerprint - use incident_key, fall back to incident_id
+	fingerprint := data.IncidentKey
+	if fingerprint == "" {
+		fingerprint = data.ID
+	}
+
 	alert := ProcessedAlert{
 		AlertName:   data.Title,
 		Severity:    severity,
 		Status:      status,
 		Summary:     data.Title,
 		Description: data.Description,
-		Fingerprint: data.IncidentKey,
+		Fingerprint: fingerprint,
 		Priority:    getPagerDutyPriorityString(data.Priority),
 		Labels: map[string]interface{}{
 			"source":          "pagerduty",
@@ -544,8 +555,10 @@ func (p *PagerDutyWebhook) ToProcessedAlert() ProcessedAlert {
 
 func (c *CoralogixWebhook) ToProcessedAlert() ProcessedAlert {
 	// Map Coralogix action to status
+	// Coralogix sends: "trigger" for firing, "resolve" or "resolved" for resolved
 	status := "firing"
-	if strings.ToLower(c.AlertAction) == "resolve" {
+	action := strings.ToLower(c.AlertAction)
+	if action == "resolve" || action == "resolved" || action == "recovery" || action == "ok" {
 		status = "resolved"
 	}
 
@@ -566,13 +579,20 @@ func (c *CoralogixWebhook) ToProcessedAlert() ProcessedAlert {
 		description = c.LogText
 	}
 
+	// Generate a robust fingerprint for deduplication
+	// Use alert_id if available, otherwise combine alert_name + application + subsystem
+	fingerprint := c.AlertID
+	if fingerprint == "" {
+		fingerprint = fmt.Sprintf("coralogix-%s-%s-%s", c.AlertName, c.Application, c.Subsystem)
+	}
+
 	alert := ProcessedAlert{
 		AlertName:   c.AlertName,
 		Severity:    severity,
 		Status:      status,
 		Summary:     c.AlertName,
 		Description: description,
-		Fingerprint: c.AlertID,
+		Fingerprint: fingerprint,
 		Priority:    mapSeverityToPriority(severity),
 		Labels: map[string]interface{}{
 			"source":      "coralogix",

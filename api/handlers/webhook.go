@@ -464,8 +464,8 @@ func (h *WebhookHandler) processPagerDutyWebhook(payload map[string]interface{})
 	alert := webhook.ToProcessedAlert()
 	alerts = append(alerts, alert)
 
-	log.Printf("INFO: Processed PagerDuty alert: %s (Status: %s, Urgency: %s)",
-		webhook.Event.Data.Title, webhook.Event.Data.Status, webhook.Event.Data.Urgency)
+	log.Printf("INFO: Processed PagerDuty alert: title=%s, event_type=%s, data.status=%s, resolved_status=%s, fingerprint=%s",
+		webhook.Event.Data.Title, webhook.Event.EventType, webhook.Event.Data.Status, alert.Status, alert.Fingerprint)
 	return alerts
 }
 
@@ -486,14 +486,16 @@ func (h *WebhookHandler) processPagerDutyWebhookLegacy(payload map[string]interf
 
 	// Extract fields
 	title := getStringFromMap(data, "title", "pagerduty-alert")
-	status := getStringFromMap(data, "status", "triggered")
+	dataStatus := getStringFromMap(data, "status", "triggered")
+	eventType := getStringFromMap(event, "event_type", "")
 	urgency := getStringFromMap(data, "urgency", "high")
 	incidentKey := getStringFromMap(data, "incident_key", "")
+	incidentID := getStringFromMap(data, "id", "")
 	description := getStringFromMap(data, "description", "")
 
-	// Map status
+	// Map status - check both event_type and data.status
 	alertStatus := "firing"
-	if status == "resolved" {
+	if strings.Contains(strings.ToLower(eventType), "resolved") || strings.ToLower(dataStatus) == "resolved" {
 		alertStatus = "resolved"
 	}
 
@@ -505,17 +507,28 @@ func (h *WebhookHandler) processPagerDutyWebhookLegacy(payload map[string]interf
 		severity = "low"
 	}
 
+	// Generate robust fingerprint
+	fingerprint := incidentKey
+	if fingerprint == "" {
+		fingerprint = incidentID
+	}
+
+	log.Printf("DEBUG: PagerDuty legacy - event_type=%s, data.status=%s, resolved_status=%s, fingerprint=%s",
+		eventType, dataStatus, alertStatus, fingerprint)
+
 	alert := ProcessedAlert{
 		AlertName:   title,
 		Severity:    severity,
 		Status:      alertStatus,
 		Summary:     title,
 		Description: description,
-		Fingerprint: incidentKey,
+		Fingerprint: fingerprint,
 		Labels: map[string]interface{}{
 			"source":       "pagerduty",
 			"incident_key": incidentKey,
+			"incident_id":  incidentID,
 			"urgency":      urgency,
+			"event_type":   eventType,
 		},
 		Annotations: map[string]interface{}{
 			"html_url": getStringFromMap(data, "html_url", ""),
@@ -548,8 +561,8 @@ func (h *WebhookHandler) processCoralogixWebhook(payload map[string]interface{})
 	alert := webhook.ToProcessedAlert()
 	alerts = append(alerts, alert)
 
-	log.Printf("INFO: Processed Coralogix alert: %s (Severity: %s, Action: %s)",
-		webhook.AlertName, webhook.AlertSeverity, webhook.AlertAction)
+	log.Printf("INFO: Processed Coralogix alert: name=%s, action=%s, status=%s, fingerprint=%s, severity=%s",
+		webhook.AlertName, webhook.AlertAction, alert.Status, alert.Fingerprint, webhook.AlertSeverity)
 	return alerts
 }
 
@@ -566,9 +579,10 @@ func (h *WebhookHandler) processCoralogixWebhookLegacy(payload map[string]interf
 	application := getStringFromMap(payload, "application", "")
 	subsystem := getStringFromMap(payload, "subsystem", "")
 
-	// Map action to status
+	// Map action to status - handle various Coralogix action formats
 	status := "firing"
-	if strings.ToLower(alertAction) == "resolve" {
+	action := strings.ToLower(alertAction)
+	if action == "resolve" || action == "resolved" || action == "recovery" || action == "ok" {
 		status = "resolved"
 	}
 
@@ -581,7 +595,13 @@ func (h *WebhookHandler) processCoralogixWebhookLegacy(payload map[string]interf
 		severity = "high"
 	case "info":
 		severity = "info"
-	// default keeps severity = "warning"
+		// default keeps severity = "warning"
+	}
+
+	// Generate robust fingerprint for deduplication
+	fingerprint := alertID
+	if fingerprint == "" {
+		fingerprint = fmt.Sprintf("coralogix-%s-%s-%s", alertName, application, subsystem)
 	}
 
 	alert := ProcessedAlert{
@@ -590,7 +610,7 @@ func (h *WebhookHandler) processCoralogixWebhookLegacy(payload map[string]interf
 		Status:      status,
 		Summary:     alertName,
 		Description: description,
-		Fingerprint: alertID,
+		Fingerprint: fingerprint,
 		Labels: map[string]interface{}{
 			"source":      "coralogix",
 			"alert_id":    alertID,
@@ -670,6 +690,18 @@ func (h *WebhookHandler) routeAlert(integration db.Integration, alert ProcessedA
 // Route alert: atomic incident creation with full service resolution
 func (h *WebhookHandler) routeAlertToCreateIncident(integration db.Integration, alert ProcessedAlert) error {
 	log.Printf("DEBUG: Starting atomic incident creation for integration %s", integration.ID)
+
+	// Step 0: Check for duplicate incidents (deduplication)
+	if alert.Fingerprint != "" {
+		existingIncident, err := h.incidentService.FindIncidentByFingerprint(alert.Fingerprint)
+		if err == nil && existingIncident != nil {
+			log.Printf("DEBUG: Found existing incident %s with fingerprint %s, skipping duplicate creation",
+				existingIncident.ID, alert.Fingerprint)
+			// Optionally increment alert count on existing incident
+			_ = h.incidentService.IncrementAlertCount(existingIncident.ID)
+			return nil
+		}
+	}
 
 	// Step 1: Resolve service and assignment BEFORE creating incident
 	serviceInfo, assigneeInfo, err := h.resolveServiceAndAssignee(integration, alert)
