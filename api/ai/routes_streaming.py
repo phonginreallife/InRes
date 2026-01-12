@@ -189,7 +189,7 @@ async def websocket_stream(websocket: WebSocket):
     
     user_id = result
     await websocket.accept()
-    logger.info(f"✅ Streaming WebSocket connected for user: {user_id}, org: {org_id}")
+    logger.info(f"Streaming WebSocket connected for user: {user_id}, org: {org_id}")
     
     # Generate session ID
     session_id = str(uuid.uuid4())
@@ -271,7 +271,7 @@ async def websocket_stream(websocket: WebSocket):
                     })
                     continue
                 
-                logger.info(f"📨 Received prompt: {prompt[:50]}...")
+                logger.info(f"Received prompt: {prompt[:50]}...")
                 
                 # Cancel any existing stream task
                 if stream_task and not stream_task.done():
@@ -296,7 +296,7 @@ async def websocket_stream(websocket: WebSocket):
                     "error": "Invalid JSON message"
                 })
             except WebSocketDisconnect:
-                logger.info(f"🔌 WebSocket disconnected: {session_id}")
+                logger.info(f"WebSocket disconnected: {session_id}")
                 break
                 
     except Exception as e:
