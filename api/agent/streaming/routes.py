@@ -11,6 +11,8 @@ HYBRID APPROACH:
 INTEGRATIONS:
 - Uses core.ToolExecutor for unified tool handling
 - Uses core.ToolContext for mutable org/project context
+- Audit logging for security and compliance
+- Conversation history for message persistence and resume
 """
 
 import asyncio
@@ -33,6 +35,10 @@ from core.tool_executor import ToolExecutor, ToolContext, create_tool_executor
 # Local package imports
 from .agent import StreamingAgent, INCIDENT_TOOLS
 from .mcp_client import MCPToolManager, get_mcp_pool
+
+# Audit and conversation history integration
+from audit_service import get_audit_service, EventType
+from routes_conversations import save_conversation, save_message, update_conversation_activity
 
 logger = logging.getLogger(__name__)
 
@@ -83,10 +89,22 @@ async def websocket_stream(websocket: WebSocket):
     org_id = websocket.query_params.get("org_id")
     project_id = websocket.query_params.get("project_id")
     
+    # Get audit service
+    audit = get_audit_service()
+    client_ip = websocket.client.host if websocket.client else None
+    
     # Verify authentication
     is_valid, result = await verify_token(token)
     if not is_valid:
         logger.warning(f"Streaming WebSocket auth failed: {result}")
+        # Audit: log auth failure
+        await audit.log_auth_failed(
+            user_id=None,
+            error_code="INVALID_TOKEN",
+            error_message=result,
+            source_ip=client_ip,
+            org_id=org_id
+        )
         await websocket.close(code=4001, reason="Unauthorized")
         return
     
@@ -160,11 +178,13 @@ You help users manage incidents, analyze alerts, and troubleshoot issues.
 Be concise but thorough in your responses."""
     )
     
-    # Store session info
+    # Store session info (including conversation tracking state)
     active_sessions[session_id] = {
         "agent": agent,
         "mcp_manager": mcp_manager,
-        "user_id": user_id
+        "user_id": user_id,
+        "is_first_message": True,  # Track if first message for conversation creation
+        "conversation_id": session_id  # Use session_id as conversation_id
     }
     
     # Create mutable tool context (can be updated per message)
@@ -179,14 +199,28 @@ Be concise but thorough in your responses."""
         session_id=session_id
     )
     
+    # Audit: log session created
+    await audit.log_session_created(
+        user_id=user_id,
+        session_id=session_id,
+        source_ip=client_ip,
+        user_agent=websocket.headers.get("user-agent"),
+        org_id=org_id,
+        project_id=project_id
+    )
+    
     # Send session info to client
     await websocket.send_json({
         "type": "session_created",
         "session_id": session_id,
+        "conversation_id": session_id,  # Send conversation_id to client for resume support
         "message": "Streaming session established",
         "mcp_servers": mcp_manager.server_count,
         "total_tools": len(all_tools)
     })
+    
+    # Reference to session for mutable state tracking
+    session = active_sessions[session_id]
     
     # Output queue for streaming events
     output_queue: asyncio.Queue = asyncio.Queue()
@@ -261,6 +295,37 @@ Be concise but thorough in your responses."""
                 
                 logger.info(f"Received prompt: {prompt[:50]}...")
                 
+                # Audit: log chat message
+                await audit.log_chat_message(
+                    user_id=user_id,
+                    session_id=session_id,
+                    message_preview=prompt[:100],
+                    org_id=tool_context.org_id,
+                    project_id=tool_context.project_id
+                )
+                
+                # Conversation history: save conversation on first message
+                if session["is_first_message"]:
+                    await save_conversation(
+                        user_id=user_id,
+                        conversation_id=session["conversation_id"],
+                        first_message=prompt,
+                        model="claude-sonnet-4-streaming",
+                        metadata={
+                            "org_id": tool_context.org_id,
+                            "project_id": tool_context.project_id,
+                            "mode": "streaming"
+                        }
+                    )
+                    session["is_first_message"] = False
+                
+                # Save user message to conversation history
+                await save_message(
+                    conversation_id=session["conversation_id"],
+                    role="user",
+                    content=prompt
+                )
+                
                 # Cancel any existing stream task
                 if stream_task and not stream_task.done():
                     stream_task.cancel()
@@ -269,14 +334,28 @@ Be concise but thorough in your responses."""
                     except asyncio.CancelledError:
                         pass
                 
-                # Start streaming response
-                stream_task = asyncio.create_task(
-                    agent.stream_response(
+                # Start streaming response with history tracking
+                conv_id = session["conversation_id"]  # Capture for closure
+                
+                async def stream_and_save():
+                    """Stream response and save to conversation history."""
+                    response = await agent.stream_response(
                         prompt=prompt,
                         output_queue=output_queue,
                         tool_executor=tool_executor
                     )
-                )
+                    # Save assistant response to conversation history
+                    if response:
+                        await save_message(
+                            conversation_id=conv_id,
+                            role="assistant",
+                            content=response
+                        )
+                        # Update conversation activity
+                        await update_conversation_activity(conv_id)
+                    return response
+                
+                stream_task = asyncio.create_task(stream_and_save())
                 
             except json.JSONDecodeError:
                 await websocket.send_json({
