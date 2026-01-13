@@ -75,7 +75,7 @@ class SDKHybridAgentConfig(AgentConfig):
     
     # SDK settings
     mcp_servers: Dict[str, Any] = field(default_factory=dict)
-    permission_mode: str = "auto"
+    permission_mode: str = "default"  # acceptEdits, bypassPermissions, default, dontAsk, plan
     max_turns: int = 10
     
     # Behavior settings
@@ -469,6 +469,10 @@ class SDKHybridAgent(BaseAgent):
         self._history.clear()
         if self._orchestrator:
             self._orchestrator.clear_messages()
+    
+    def get_history(self) -> List[Dict[str, Any]]:
+        """Get current conversation history."""
+        return self._history.to_api_format()
     
     def interrupt(self) -> None:
         """Interrupt current processing."""

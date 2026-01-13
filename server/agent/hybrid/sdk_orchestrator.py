@@ -113,7 +113,7 @@ class SDKOrchestrator:
         model: str = "claude-sonnet-4-20250514",
         system_prompt: str = None,
         mcp_servers: Dict[str, Any] = None,
-        permission_mode: str = "auto",
+        permission_mode: str = "default",  # acceptEdits, bypassPermissions, default, dontAsk, plan
         max_turns: int = 10,
     ):
         """

@@ -74,20 +74,25 @@ dev-bg:
 test:
 	pytest -v
 
-# Test hybrid agent directly (no WebSocket)
+# Test SDK hybrid agent directly (no WebSocket)
 test-agent:
-	@echo "Testing HybridAgent..."
-	python scripts/test_hybrid.py "Hello, what can you help me with?"
+	@echo "Testing SDKHybridAgent..."
+	python3 scripts/test_sdk_hybrid.py "Hello, what can you help me with?"
 
-# Test hybrid with tool prompt
+# Test SDK hybrid with tool prompt
 test-agent-tools:
-	@echo "Testing HybridAgent with tools..."
-	python scripts/test_hybrid.py "Show me recent incidents"
+	@echo "Testing SDKHybridAgent with tools..."
+	python3 scripts/test_sdk_hybrid.py "What is the current time?" --tools
+
+# Test legacy hybrid agent (for comparison)
+test-agent-legacy:
+	@echo "Testing legacy HybridAgent..."
+	python3 scripts/test_hybrid.py "Hello, what can you help me with?"
 
 # Test WebSocket endpoint
 test-ws:
 	@echo "Testing /ws/chat endpoint..."
-	python scripts/test_websocket.py
+	python3 scripts/test_websocket.py
 
 # =============================================================================
 # DOCKER
