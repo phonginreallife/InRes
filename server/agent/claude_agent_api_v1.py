@@ -58,10 +58,8 @@ from routes import (
     update_conversation_activity,
 )
 
-# Import Hybrid Agent (production agent)
-from hybrid import HybridAgent, HybridAgentConfig
-from core.tool_executor import ToolContext, create_tool_executor
-from streaming.agent import INCIDENT_TOOLS
+# Import SDK Hybrid Agent (production agent with Claude Agent SDK)
+from hybrid import SDKHybridAgent, SDKHybridAgentConfig
 from streaming.mcp_client import MCPToolManager, get_mcp_pool
 
 # Configure logging
@@ -377,50 +375,54 @@ async def websocket_chat(websocket: WebSocket):
         logger.error(f"Failed to load MCP servers: {e}", exc_info=True)
         mcp_manager = MCPToolManager()
     
-    # Combine built-in and MCP tools
-    all_tools = INCIDENT_TOOLS.copy()
-    all_tools.extend(mcp_tools)
+    # Build MCP servers dict for SDK (external tools only, incident tools are built-in to SDK)
+    mcp_servers_for_sdk = {}
+    if mcp_manager and mcp_manager.server_count > 0:
+        # Pass MCP servers to SDK orchestrator
+        mcp_servers_for_sdk = mcp_manager.get_server_configs()
     
-    # Create HybridAgent config
-    config = HybridAgentConfig(
+    # Create SDKHybridAgent config
+    # Note: Incident tools are registered via Claude Agent SDK's @tool decorator
+    # in tools/incidents.py, so we don't need to pass them here
+    config = SDKHybridAgentConfig(
         model="claude-sonnet-4-20250514",
         streaming_model="claude-sonnet-4-20250514",
-        planning_model="claude-sonnet-4-20250514",
+        sdk_model="claude-sonnet-4-20250514",
         max_tokens=4096,
-        max_planning_tokens=1024,
-        tools=all_tools,
+        mcp_servers=mcp_servers_for_sdk,
         system_prompt="""You are an AI assistant specialized in incident response and DevOps.
 You help users manage incidents, analyze alerts, and troubleshoot issues.
 
-## Tool Selection Guidelines
+## Available Tools (via Claude Agent SDK)
 
-**For InRes Incident Operations (ALWAYS use built-in tools):**
-- Use `get_incidents` to list incidents from InRes
-- Use `get_incident_details` to fetch a specific incident
-- Use `acknowledge_incident` to acknowledge an incident
-- Use `resolve_incident` to resolve an incident
-- Use `get_incident_stats` for statistics
+**Incident Management Tools:**
+- get_incidents_by_time: Fetch incidents within a time range
+- get_incident_by_id: Get detailed incident information
+- get_incident_stats: Get incident statistics
+- get_current_time: Get current time for time-based queries
+- search_incidents: Full-text search for incidents
 
-**For External Integrations (MCP tools prefixed with mcp__):**
-- Use Coralogix MCP tools for querying logs
-- Use Confluence MCP tools for documentation
-- Use other MCP tools for their respective services
+**External Integrations (MCP):**
+- Coralogix MCP tools for querying logs
+- Confluence MCP tools for documentation
+- Other configured MCP tools
 
 Be concise but thorough in your responses."""
     )
     
-    # Create HybridAgent
-    agent = HybridAgent(config=config)
+    # Create SDKHybridAgent
+    agent = SDKHybridAgent(config=config)
     
-    # Create tool context and executor
-    tool_context = ToolContext(org_id=ws_org_id, project_id=ws_project_id)
-    tool_executor = create_tool_executor(
+    # Set auth context for SDK tools
+    agent.set_auth_context(
         auth_token=token,
-        context=tool_context,
-        mcp_manager=mcp_manager,
-        user_id=user_id,
-        session_id=session_id
+        org_id=ws_org_id,
+        project_id=ws_project_id
     )
+
+    # Track tool count for session info
+    # Note: SDK tools are loaded dynamically, so we estimate based on MCP tools + built-in tools
+    estimated_tool_count = len(mcp_tools) + 5  # 5 built-in incident tools
     
     # Log session created
     await audit.log_session_created(
@@ -437,10 +439,10 @@ Be concise but thorough in your responses."""
         "type": "session_created",
         "session_id": session_id,
         "conversation_id": session_id,
-        "agent_type": "hybrid",
-        "message": "Hybrid agent session established",
+        "agent_type": "sdk_hybrid",
+        "message": "SDK Hybrid agent session established (Claude Agent SDK + Token Streaming)",
         "mcp_servers": mcp_manager.server_count if mcp_manager else 0,
-        "total_tools": len(all_tools)
+        "total_tools": estimated_tool_count
     })
     logger.info(f"📤 Sent session_created: {session_id}")
 
@@ -521,12 +523,16 @@ Be concise but thorough in your responses."""
                         "error": "Empty prompt"
                     })
                     continue
-                
+
                 # Update context if provided
-                msg_org_id = message.get("org_id")
-                msg_project_id = message.get("project_id")
+                msg_org_id = message.get("org_id") or ws_org_id
+                msg_project_id = message.get("project_id") or ws_project_id
                 if msg_org_id or msg_project_id:
-                    tool_context.update(org_id=msg_org_id, project_id=msg_project_id)
+                    agent.set_auth_context(
+                        auth_token=token,
+                        org_id=msg_org_id,
+                        project_id=msg_project_id
+                    )
                 
                 # Update conversation_id if provided (for resume)
                 if message.get("conversation_id"):
@@ -540,8 +546,8 @@ Be concise but thorough in your responses."""
                     session_id=session_id,
                     conversation_id=conversation_id,
                     message_preview=prompt[:100],
-                    org_id=tool_context.org_id,
-                    project_id=tool_context.project_id
+                    org_id=msg_org_id,
+                    project_id=msg_project_id
                 )
                 
                 # Save conversation on first message
@@ -550,11 +556,11 @@ Be concise but thorough in your responses."""
                         user_id=user_id,
                         conversation_id=conversation_id,
                         first_message=prompt,
-                        model="claude-sonnet-4-hybrid",
+                        model="claude-sonnet-4-sdk-hybrid",
                         metadata={
-                            "org_id": tool_context.org_id,
-                            "project_id": tool_context.project_id,
-                            "mode": "hybrid"
+                            "org_id": msg_org_id,
+                            "project_id": msg_project_id,
+                            "mode": "sdk_hybrid"
                         }
                     )
                     is_first_message = False
@@ -574,13 +580,15 @@ Be concise but thorough in your responses."""
                     except asyncio.CancelledError:
                         pass
                 
-                # Process with hybrid agent
+                # Process with SDK hybrid agent
                 async def process_and_save():
-                    """Process with HybridAgent and save response."""
+                    """Process with SDKHybridAgent and save response."""
                     response = await agent.process_message(
                         prompt=prompt,
                         output_queue=output_queue,
-                        tool_executor=tool_executor
+                        auth_token=token,
+                        org_id=msg_org_id,
+                        project_id=msg_project_id
                     )
                     
                     if response:
@@ -770,32 +778,32 @@ async def websocket_secure_chat(websocket: WebSocket):
             logger.error(f"Failed to load MCP servers: {e}")
             mcp_manager = MCPToolManager()
 
-        # Combine tools
-        all_tools = INCIDENT_TOOLS.copy()
-        all_tools.extend(mcp_tools)
+        # Build MCP servers dict for SDK
+        mcp_servers_for_sdk = {}
+        if mcp_manager and mcp_manager.server_count > 0:
+            mcp_servers_for_sdk = mcp_manager.get_server_configs()
+        
+        # Count tools for session info
+        estimated_tool_count = len(mcp_tools) + 5  # 5 built-in incident tools
 
-        # Create HybridAgent
-        config = HybridAgentConfig(
+        # Create SDKHybridAgent
+        config = SDKHybridAgentConfig(
             model="claude-sonnet-4-20250514",
             streaming_model="claude-sonnet-4-20250514",
-            planning_model="claude-sonnet-4-20250514",
+            sdk_model="claude-sonnet-4-20250514",
             max_tokens=4096,
-            max_planning_tokens=1024,
-            tools=all_tools,
+            mcp_servers=mcp_servers_for_sdk,
             system_prompt="""You are an AI assistant specialized in incident response and DevOps.
 You help users manage incidents, analyze alerts, and troubleshoot issues.
 Be concise but thorough in your responses."""
         )
-        agent = HybridAgent(config=config)
+        agent = SDKHybridAgent(config=config)
 
-        # Create tool executor
-        tool_context = ToolContext(org_id=ws_org_id, project_id=ws_project_id)
-        tool_executor = create_tool_executor(
-            auth_token="",  # Zero-Trust uses device cert
-            context=tool_context,
-            mcp_manager=mcp_manager,
-            user_id=user_id,
-            session_id=session_id
+        # Set auth context (Zero-Trust doesn't need token, uses device cert)
+        agent.set_auth_context(
+            auth_token="",  # Zero-Trust uses device cert instead
+            org_id=ws_org_id,
+            project_id=ws_project_id
         )
 
         # Send auth success with session info
@@ -805,9 +813,9 @@ Be concise but thorough in your responses."""
             "conversation_id": session_id,
             "user_id": user_id,
             "permissions": session.permissions,
-            "agent_type": "hybrid",
+            "agent_type": "sdk_hybrid",
             "mcp_servers": mcp_manager.server_count if mcp_manager else 0,
-            "total_tools": len(all_tools)
+            "total_tools": estimated_tool_count
         })
 
         # Track session state
@@ -907,10 +915,14 @@ Be concise but thorough in your responses."""
                         continue
 
                     # Update context if provided
-                    msg_org_id = data.get("org_id")
-                    msg_project_id = data.get("project_id")
+                    msg_org_id = data.get("org_id") or ws_org_id
+                    msg_project_id = data.get("project_id") or ws_project_id
                     if msg_org_id or msg_project_id:
-                        tool_context.update(org_id=msg_org_id, project_id=msg_project_id)
+                        agent.set_auth_context(
+                            auth_token="",  # Zero-Trust uses device cert
+                            org_id=msg_org_id,
+                            project_id=msg_project_id
+                        )
 
                     if data.get("conversation_id"):
                         conversation_id = data.get("conversation_id")
@@ -923,8 +935,8 @@ Be concise but thorough in your responses."""
                         session_id=session_id,
                         conversation_id=conversation_id,
                         message_preview=prompt[:100],
-                        org_id=tool_context.org_id,
-                        project_id=tool_context.project_id
+                        org_id=msg_org_id,
+                        project_id=msg_project_id
                     )
 
                     # Save conversation on first message
@@ -933,11 +945,11 @@ Be concise but thorough in your responses."""
                             user_id=user_id,
                             conversation_id=conversation_id,
                             first_message=prompt,
-                            model="claude-sonnet-4-hybrid",
+                            model="claude-sonnet-4-sdk-hybrid",
                             metadata={
-                                "org_id": tool_context.org_id,
-                                "project_id": tool_context.project_id,
-                                "mode": "hybrid-secure"
+                                "org_id": msg_org_id,
+                                "project_id": msg_project_id,
+                                "mode": "sdk_hybrid-secure"
                             }
                         )
                         is_first_message = False
@@ -956,12 +968,14 @@ Be concise but thorough in your responses."""
                         except asyncio.CancelledError:
                             pass
 
-                    # Process with hybrid agent
+                    # Process with SDK hybrid agent
                     async def process_and_save():
                         response = await agent.process_message(
                             prompt=prompt,
                             output_queue=output_queue,
-                            tool_executor=tool_executor
+                            auth_token="",  # Zero-Trust uses device cert
+                            org_id=msg_org_id,
+                            project_id=msg_project_id
                         )
                         if response:
                             await save_message(

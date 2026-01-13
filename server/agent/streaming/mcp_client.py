@@ -382,6 +382,27 @@ class MCPToolManager:
     def tool_count(self) -> int:
         """Total number of tools across all servers."""
         return sum(len(s.tools) for s in self.servers.values())
+    
+    def get_server_configs(self) -> Dict[str, Any]:
+        """
+        Get server configurations for SDK orchestrator.
+        
+        Returns dict that can be passed to SDKOrchestrator.mcp_servers.
+        Note: The SDK orchestrator will need to handle MCP integration
+        differently than direct API usage.
+        
+        Returns:
+            Dict of server configs: {name: {command, args, env}}
+        """
+        configs = {}
+        for name, server in self.servers.items():
+            configs[name] = {
+                "command": server.command,
+                "args": server.args,
+                "env": server.env or {},
+                "tools": server.tools,  # Include discovered tools
+            }
+        return configs
 
 
 # =============================================================================
