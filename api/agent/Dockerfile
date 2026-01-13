@@ -72,7 +72,7 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 EXPOSE 8002
 
 # Run the application
-CMD ["uvicorn", "claude_agent_api_v1:app", \
+CMD ["uvicorn", "main:app", \
      "--host", "0.0.0.0", \
      "--port", "8002", \
      "--workers", "1", \
