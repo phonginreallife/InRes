@@ -16,7 +16,7 @@ from psycopg2.extras import RealDictCursor
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from config import config
-from incident_tools import create_incident_tools_server, set_auth_token, set_org_id, set_project_id
+from tools import create_incident_tools_server, set_auth_token, set_org_id, set_project_id
 
 logger = logging.getLogger(__name__)
 

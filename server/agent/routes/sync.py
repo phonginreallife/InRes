@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import APIRouter, Request
-from supabase_storage import (
+from services.storage import (
     extract_user_id_from_token,
     get_user_mcp_servers,
     get_user_workspace_path,
@@ -26,8 +26,8 @@ from supabase_storage import (
     sync_user_skills,
     unzip_installed_plugins,
 )
-from database_util import execute_query
-from git_utils import (
+from utils.database import execute_query
+from utils.git import (
     fetch_and_reset,
     get_marketplace_dir,
     is_git_repository,

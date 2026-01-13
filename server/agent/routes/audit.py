@@ -17,8 +17,8 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from database_util import execute_query
-from supabase_storage import extract_user_id_from_token
+from utils.database import execute_query
+from services.storage import extract_user_id_from_token
 
 logger = logging.getLogger(__name__)
 

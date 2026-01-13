@@ -15,8 +15,8 @@ import logging
 from datetime import datetime
 from fastapi import APIRouter, Request
 
-from supabase_storage import extract_user_id_from_token, sync_memory_to_workspace
-from database_util import execute_query, ensure_user_exists, extract_user_info_from_token
+from services.storage import extract_user_id_from_token, sync_memory_to_workspace
+from utils.database import execute_query, ensure_user_exists, extract_user_info_from_token
 
 logger = logging.getLogger(__name__)
 

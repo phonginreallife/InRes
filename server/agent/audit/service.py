@@ -39,10 +39,7 @@ from queue import Queue
 import threading
 
 # Import database utility
-try:
-    from .database_util import get_db_connection, execute_query
-except ImportError:
-    from database_util import get_db_connection, execute_query
+from utils.database import get_db_connection, execute_query
 
 logger = logging.getLogger(__name__)
 

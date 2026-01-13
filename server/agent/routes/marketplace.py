@@ -32,14 +32,14 @@ from datetime import datetime
 import httpx
 from fastapi import APIRouter, Request
 
-from supabase_storage import (
+from services.storage import (
     extract_user_id_from_token,
     get_supabase_client,
     get_user_workspace_path,
     unzip_installed_plugins,
 )
-from database_util import execute_query, ensure_user_exists, extract_user_info_from_token
-from git_utils import (
+from utils.database import execute_query, ensure_user_exists, extract_user_info_from_token
+from utils.git import (
     build_github_url,
     clone_repository,
     fetch_and_reset,

@@ -15,8 +15,8 @@ import json
 import logging
 from fastapi import APIRouter, Request
 
-from supabase_storage import extract_user_id_from_token, sync_mcp_config_to_local
-from database_util import execute_query, ensure_user_exists, extract_user_info_from_token
+from services.storage import extract_user_id_from_token, sync_mcp_config_to_local
+from utils.database import execute_query, ensure_user_exists, extract_user_info_from_token
 
 logger = logging.getLogger(__name__)
 

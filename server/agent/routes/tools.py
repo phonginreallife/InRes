@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import APIRouter, Request
-from supabase_storage import (
+from services.storage import (
     extract_user_id_from_token,
     get_user_allowed_tools,
     add_user_allowed_tool,

@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any, List
 from supabase import create_client, Client
 import jwt
-from database_util import execute_query
+from utils.database import execute_query
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -1075,7 +1075,7 @@ async def unzip_installed_plugins(user_id: str) -> Dict[str, Any]:
             "message": str
         }
     """
-    from git_utils import ensure_repository, get_marketplace_dir
+    from utils.git import ensure_repository, get_marketplace_dir
 
     try:
         logger.info(f"📦 Verifying installed plugins for user: {user_id}")
@@ -1302,7 +1302,7 @@ async def get_user_allowed_tools(user_id: str) -> List[str]:
         return []
 
     try:
-        from database_util import execute_query
+        from utils.database import execute_query
 
         # Query user_allowed_tools table using raw SQL
         # Schema: id, user_id, tool_name, created_at
@@ -1339,7 +1339,7 @@ async def add_user_allowed_tool(user_id: str, tool_name: str) -> bool:
         return False
 
     try:
-        from database_util import execute_query
+        from utils.database import execute_query
 
         # Use UPSERT pattern - INSERT with ON CONFLICT DO NOTHING
         # This handles both new inserts and existing records in one query
@@ -1376,7 +1376,7 @@ async def delete_user_allowed_tool(user_id: str, tool_name: str) -> bool:
         return False
 
     try:
-        from database_util import execute_query
+        from utils.database import execute_query
 
         # Delete record using raw SQL
         execute_query(

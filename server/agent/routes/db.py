@@ -13,8 +13,8 @@ import json
 import logging
 from fastapi import APIRouter, Request
 
-from database_util import execute_query, ensure_user_exists, extract_user_info_from_token
-from supabase_storage import extract_user_id_from_token
+from utils.database import execute_query, ensure_user_exists, extract_user_info_from_token
+from services.storage import extract_user_id_from_token
 
 logger = logging.getLogger(__name__)
 
