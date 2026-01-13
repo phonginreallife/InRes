@@ -92,6 +92,9 @@ from routes.sync import set_mcp_cache
 # Import streaming package
 from streaming import streaming_router
 
+# Import hybrid agent package
+from hybrid import hybrid_router
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -311,6 +314,9 @@ logger.info("[Marketplace] Marketplace routes loaded from routes_marketplace.py"
 
 app.include_router(streaming_router)
 logger.info("[Streaming] Token streaming routes loaded from streaming package")
+
+app.include_router(hybrid_router)
+logger.info("[Hybrid] Hybrid agent routes loaded (SDK orchestration + token streaming)")
 
 # In-memory cache for user MCP configs
 # Simple dict cache - cleared on restart

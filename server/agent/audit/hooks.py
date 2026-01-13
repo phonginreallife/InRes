@@ -18,7 +18,8 @@ import logging
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from audit_service import (
+# Import directly from service to avoid circular import
+from .service import (
     get_audit_service,
     EventType,
     EventStatus,

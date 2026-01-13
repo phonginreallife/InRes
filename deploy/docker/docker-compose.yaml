@@ -120,3 +120,4 @@ networks:
 
 volumes:
   claude_data:
+  redis_data:

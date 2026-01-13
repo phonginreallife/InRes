@@ -1,0 +1,69 @@
+# =============================================================================
+# Development Dockerfile for InRes Agent
+# =============================================================================
+# 
+# This Dockerfile is optimized for development with:
+# - Hot reloading via uvicorn --reload
+# - All dependencies pre-installed
+# - Source code mounted as volume (not copied)
+#
+# =============================================================================
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    curl \
+    zip \
+    unzip \
+    ca-certificates \
+    gnupg \
+    apt-transport-https \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js (required for MCP servers and Claude CLI)
+RUN mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI globally (required by claude-agent-sdk)
+RUN npm install -g @anthropic-ai/claude-code
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dev dependencies
+RUN pip install --no-cache-dir \
+    watchfiles \
+    pytest \
+    pytest-asyncio \
+    httpx
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8002
+ENV HOST=0.0.0.0
+ENV HOME=/root
+ENV DEV_MODE=true
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
+# Expose port
+EXPOSE 8002
+
+# Run with hot reloading
+CMD ["uvicorn", "main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8002", \
+     "--reload", \
+     "--reload-dir", "/app", \
+     "--log-level", "debug"]
