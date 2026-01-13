@@ -1,11 +1,14 @@
 """
-Claude Agent API v1 - Legacy Block-based Agent.
+Claude Agent API v1 - Production Hybrid Agent.
 
-This module provides the legacy Claude Agent SDK integration with
-block-based (not token-level) streaming.
+This module provides the main WebSocket API using the HybridAgent that combines:
+- SDK-style orchestration for planning and tool management
+- Token-level streaming for smooth UI experience
+- Full MCP server support
 
-NOTE: This file is kept for backwards compatibility. New features
-should be developed in the streaming package.
+The hybrid approach provides the best of both worlds:
+- Fast token-by-token streaming (like direct API)
+- Smart tool orchestration (like Claude Agent SDK)
 """
 
 import asyncio
@@ -26,21 +29,6 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
-from claude_agent_sdk import (
-    AssistantMessage,
-    ClaudeAgentOptions,
-    ClaudeSDKClient,
-    PermissionResultAllow,
-    PermissionResultDeny,
-    ResultMessage,
-    SystemMessage,
-    TextBlock,
-    ThinkingBlock,
-    ToolPermissionContext,
-    ToolResultBlock,
-    ToolUseBlock,
-    UserMessage,
-)
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -89,11 +77,11 @@ from routes import (
 )
 from routes.sync import set_mcp_cache
 
-# Import streaming package
-from streaming import streaming_router
-
-# Import hybrid agent package
-from hybrid import hybrid_router
+# Import Hybrid Agent (production agent)
+from hybrid import HybridAgent, HybridAgentConfig
+from core.tool_executor import ToolExecutor, ToolContext, create_tool_executor
+from streaming.agent import INCIDENT_TOOLS
+from streaming.mcp_client import MCPToolManager, get_mcp_pool
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -312,11 +300,8 @@ logger.info("[Memory] Memory routes loaded from routes_memory.py")
 app.include_router(marketplace_router)
 logger.info("[Marketplace] Marketplace routes loaded from routes_marketplace.py")
 
-app.include_router(streaming_router)
-logger.info("[Streaming] Token streaming routes loaded from streaming package")
-
-app.include_router(hybrid_router)
-logger.info("[Hybrid] Hybrid agent routes loaded (SDK orchestration + token streaming)")
+# Hybrid agent is now the main /ws/chat endpoint (no separate routes needed)
+logger.info("[Hybrid] HybridAgent is the production agent (SDK orchestration + token streaming)")
 
 # In-memory cache for user MCP configs
 # Simple dict cache - cleared on restart
@@ -330,1177 +315,7 @@ set_mcp_cache(user_mcp_cache)
 user_plugin_locks: Dict[str, Lock] = {}
 
 
-from starlette.websockets import WebSocketState
-
-async def heartbeat_task(websocket: WebSocket, output_queue: asyncio.Queue = None, interval: int = 10):
-    """Send periodic ping messages to keep the connection alive.
-
-    If output_queue is provided, sends through queue to avoid concurrent WebSocket writes.
-    """
-    try:
-        while True:
-            await asyncio.sleep(interval)
-
-            # Check if connection is still open before sending
-            if websocket.client_state != WebSocketState.CONNECTED:
-                print("[!] Heartbeat task stopping: WebSocket not connected")
-                break
-
-            try:
-                ping_msg = {"type": "ping", "timestamp": time.time()}
-                if output_queue:
-                    # Send through queue to avoid concurrent WebSocket writes
-                    await output_queue.put(ping_msg)
-                else:
-                    # Fallback to direct send (legacy)
-                    await websocket.send_json(ping_msg)
-            except Exception as e:
-                # Only log if it's not a normal disconnect
-                if "disconnect" not in str(e).lower() and "closed" not in str(e).lower():
-                    print(f"[!] Heartbeat failed: {e}")
-                break
-    except asyncio.CancelledError:
-        raise
-
-
-async def message_router(
-    websocket: WebSocket,
-    agent_queue: asyncio.Queue,
-    interrupt_queue: asyncio.Queue,
-    permission_response_queue: asyncio.Queue,
-):
-    """
-    Route incoming WebSocket messages to appropriate queues.
-
-    This is the ONLY place that reads from websocket.receive_json()
-    to avoid race conditions.
-    """
-    try:
-        while True:
-            data = await websocket.receive_json()
-
-            # Handle pong messages immediately
-            if data.get("type") == "pong":
-                logger.debug(f"Received pong at {data.get('timestamp')}")
-                continue
-
-            # Route to appropriate queue based on message type
-            msg_type = data.get("type")
-
-            if msg_type == "interrupt":
-                logger.info("[!] Routing interrupt message to interrupt_queue")
-                await interrupt_queue.put(data)
-            elif msg_type == "permission_response" or data.get("allow") is not None:
-                # Permission approval/denial from user
-                logger.info(
-                    "[!] Routing permission response to permission_response_queue"
-                )
-                await permission_response_queue.put(data)
-            else:
-                logger.info("[!] Routing agent message to agent_queue")
-                await agent_queue.put(data)
-
-    except WebSocketDisconnect:
-        logger.info("🔌 Message router: WebSocket disconnected")
-    except Exception as e:
-        logger.error(f"[!] Message router error: {e}", exc_info=True)
-        raise  # Propagate error
-    finally:
-        # Signal end of messages to all queues
-        await agent_queue.put(None)
-        await interrupt_queue.put(None)
-        await permission_response_queue.put(None)
-        logger.info("📭 Router signaled end of messages")
-
-
-async def websocket_sender(websocket: WebSocket, output_queue: asyncio.Queue):
-    """
-    Send messages from output queue to WebSocket.
-
-    This task handles all WebSocket sending, isolated from agent processing.
-    If WebSocket fails, only this task fails - agent continues processing.
-    """
-    try:
-        while True:
-            # Get message from output queue
-            message = await output_queue.get()
-
-            # Check for end signal
-            if message is None:
-                logger.info("📭 WebSocket sender: End of messages")
-                break
-
-            # Try to send, but don't crash if WebSocket closed
-            try:
-                await websocket.send_json(message)
-                logger.info(f"📤 Sent to WebSocket: type={message.get('type')}")
-            except Exception as e:
-                logger.warning(f"Failed to send message (WebSocket closed?): {e}")
-                # Don't crash - message lost but agent continues
-                # Could implement retry or persistent queue here
-
-    except asyncio.CancelledError:
-        logger.info("[!] WebSocket sender: Cancelled")
-        raise
-    except Exception as e:
-        logger.error(f"[!] WebSocket sender error: {e}", exc_info=True)
-    finally:
-        logger.info("🧹 WebSocket sender finished")
-
-
-async def interrupt_task(
-    interrupt_queue: asyncio.Queue,
-    stop_events: Dict[str, asyncio.Event],
-    output_queue: asyncio.Queue,
-):
-    """Handle interrupt requests from the interrupt queue.
-
-    Sends acknowledgment through output_queue to avoid concurrent WebSocket writes.
-    """
-    try:
-        while True:
-            data = await interrupt_queue.get()
-
-            # Check for end of messages
-            if data is None:
-                logger.info("[!] Interrupt task: End of messages")
-                break
-
-            # Handle interrupt request
-            if data.get("type") == "interrupt":
-                session_id = data.get("session_id")
-                if session_id:
-                    logger.info(
-                        f"[!] Interrupt task: Setting stop event for session: {session_id}"
-                    )
-
-                    # Ensure event exists
-                    if session_id not in stop_events:
-                        stop_events[session_id] = asyncio.Event()
-
-                    # Set the event
-                    stop_events[session_id].set()
-
-                    # Send through queue to avoid concurrent WebSocket writes
-                    await output_queue.put(
-                        {"type": "interrupt_acknowledged", "session_id": session_id}
-                    )
-
-    except asyncio.CancelledError:
-        logger.info("[!] Interrupt task: Cancelled")
-        raise
-    except Exception as e:
-        logger.error(f"[!] Interrupt task error: {e}", exc_info=True)
-        raise  # Propagate error
-    finally:
-        logger.info("🧹 Interrupt task finished")
-
-
-async def agent_task_streaming(
-    agent_queue: asyncio.Queue,
-    stop_events: Dict[str, asyncio.Event],
-    output_queue: asyncio.Queue,
-    permission_callback,
-    websocket: WebSocket = None,
-    hooks_config: Dict[str, Any] = None,
-    initial_user_id: str = None,  # User ID from WebSocket auth (for early init)
-    initial_auth_token: str = None,  # Auth token from WebSocket
-):
-    """
-    TRUE Streaming Mode - Uses AsyncGenerator with ONE long-lived ClaudeSDKClient.
-
-    Per Claude Agent SDK docs (streaming-vs-single-mode):
-    - ONE client.query(generator) call
-    - Generator yields messages as they come from queue
-    - receive_response() runs concurrently to process responses
-
-    Benefits:
-    - Lower latency (no client recreation)
-    - Natural multi-turn conversations
-    - Image uploads support
-    - Real-time interruption
-    """
-    # Context variables (updated per message)
-    context = {
-        "auth_token": initial_auth_token or "",
-        "session_id": "",
-        "conversation_id": "",
-        "user_id": initial_user_id or "",
-        "org_id": "",
-        "project_id": "",
-        "first_prompt": "",
-        "workspace": "",
-        "is_resuming": False,
-    }
-
-    # Shared state
-    client_ref = {"client": None}
-    interrupted = False
-    session_initialized = False
-
-    # Synchronization for post-interrupt message processing
-    new_message_ready = asyncio.Event()
-
-    # Response processing state
-    assistant_text_buffer = []
-    user_message_saved = False
-    current_prompt = ""
-
-    async def message_generator():
-        """
-        AsyncGenerator that yields messages from agent_queue.
-        This is the TRUE streaming mode - generator keeps yielding until queue returns None.
-        """
-        nonlocal interrupted, assistant_text_buffer, user_message_saved, current_prompt
-
-        while True:
-            try:
-                # Wait for message from queue (with timeout to check interrupts)
-                try:
-                    data = await asyncio.wait_for(agent_queue.get(), timeout=0.5)
-                except asyncio.TimeoutError:
-                    # Don't exit on interrupt - just skip and wait for next message
-                    # This allows new messages to be processed after an interrupt
-                    continue
-
-                # End of messages (WebSocket closed)
-                if data is None:
-                    logger.info("📭 Message generator: end of messages")
-                    return
-
-                # Reset interrupted flag when new message arrives
-                # This allows processing to resume after an interrupt
-                if interrupted:
-                    logger.info("New message after interrupt, resetting interrupted flag")
-                    interrupted = False
-                    # Signal that new message is ready for processing
-                    new_message_ready.set()
-
-                # Update context from message data
-                if data.get("session_id"):
-                    context["session_id"] = data["session_id"]
-                    if context["session_id"] not in stop_events:
-                        stop_events[context["session_id"]] = asyncio.Event()
-                    stop_events[context["session_id"]].clear()
-
-                if data.get("conversation_id"):
-                    context["conversation_id"] = data["conversation_id"]
-                    context["is_resuming"] = True
-                else:
-                    context["is_resuming"] = False
-
-                if data.get("auth_token"):
-                    context["auth_token"] = data["auth_token"]
-                    set_auth_token(context["auth_token"])
-
-                if data.get("org_id"):
-                    context["org_id"] = data["org_id"]
-                    set_org_id(context["org_id"])
-
-                if data.get("project_id"):
-                    context["project_id"] = data["project_id"]
-                    set_project_id(context["project_id"])
-
-                if data.get("user_id"):
-                    context["user_id"] = data["user_id"]
-
-                if not context["user_id"] and context["auth_token"]:
-                    context["user_id"] = extract_user_id_from_token(context["auth_token"]) or ""
-
-                prompt = data.get("prompt", "")
-                if not prompt:
-                    logger.warning("Empty prompt received, skipping")
-                    continue
-
-                # Store first prompt (for new conversation)
-                if not context["first_prompt"] and not context["is_resuming"]:
-                    context["first_prompt"] = prompt
-
-                # Reset per-message state
-                assistant_text_buffer = []
-                user_message_saved = False
-                current_prompt = prompt
-
-                logger.info(f"📤 Yielding message to SDK: {prompt[:50]}...")
-
-                # Audit log
-                if context["user_id"]:
-                    audit = get_audit_service()
-                    await audit.log_chat_message(
-                        user_id=context["user_id"],
-                        session_id=context["session_id"],
-                        conversation_id=context["conversation_id"],
-                        message_preview=prompt,
-                        org_id=context["org_id"],
-                        project_id=context["project_id"]
-                    )
-
-                # Yield message in SDK streaming input format
-                if isinstance(prompt, dict) and "content" in prompt:
-                    yield {
-                        "type": "user",
-                        "message": {
-                            "role": "user",
-                            "content": prompt["content"]
-                        }
-                    }
-                else:
-                    yield {
-                        "type": "user",
-                        "message": {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    }
-
-            except asyncio.CancelledError:
-                logger.info("[!] Message generator: cancelled")
-                return
-            except Exception as e:
-                logger.error(f"[!] Message generator error: {e}", exc_info=True)
-                continue
-
-    async def process_responses():
-        """
-        Process responses from SDK - runs concurrently with message_generator.
-
-        IMPORTANT: receive_response() generator may exhaust after each turn (ResultMessage).
-        We need to keep looping to handle subsequent turns in the streaming session.
-        """
-        nonlocal session_initialized, assistant_text_buffer, user_message_saved
-
-        was_interrupted = False  # Track if we broke due to interrupt
-
-        while True:  # Keep running even after interrupts
-            try:
-                # If still interrupted (didn't see ResultMessage in drain loop), mark for wait
-                if interrupted and not was_interrupted:
-                    logger.info("Still interrupted, marking for wait")
-                    was_interrupted = True
-
-                # If we need to wait for new message after interrupt
-                if was_interrupted:
-                    logger.info("Response loop: checking for new message after interrupt...")
-
-                    # Wait for signal if not already set, OR if interrupted flag still True
-                    wait_needed = not new_message_ready.is_set() or interrupted
-                    if wait_needed:
-                        logger.info("⏳ Waiting for new_message_ready signal...")
-                        try:
-                            await asyncio.wait_for(new_message_ready.wait(), timeout=60.0)
-                        except asyncio.TimeoutError:
-                            logger.warning("Response loop: timeout waiting for new message")
-                            continue
-
-                    logger.info("  Response loop: new message ready, resuming")
-                    # Clear the event for next interrupt cycle
-                    new_message_ready.clear()
-                    # Give SDK time to process the new message
-                    await asyncio.sleep(0.2)
-                    was_interrupted = False
-
-                # receive_response() yields messages for current turn
-                # After ResultMessage, it may exhaust - we loop to catch next turn
-                async for message in client_ref["client"].receive_response():
-                    # If interrupted, drain remaining messages but don't process them
-                    # This prevents stale ResultMessage from sending "complete" to frontend
-                    if interrupted:
-                        logger.info(f"🛑 Skipping message during interrupt: {type(message).__name__}")
-                        # If we see ResultMessage during interrupt, the interrupted turn is done
-                        if isinstance(message, ResultMessage):
-                            logger.info("📭 Interrupted turn ResultMessage received, marking for wait")
-                            was_interrupted = True
-                        continue  # Skip processing, keep draining
-
-                    logger.info(f"📨 Received: {type(message).__name__}")
-
-                    if isinstance(message, AssistantMessage):
-                        for block in message.content:
-                            if isinstance(block, ThinkingBlock):
-                                await output_queue.put({
-                                    "type": "thinking",
-                                    "content": block.thinking
-                                })
-                            elif isinstance(block, TextBlock):
-                                await output_queue.put({
-                                    "type": "text",
-                                    "content": block.text
-                                })
-                                assistant_text_buffer.append(block.text)
-                            elif isinstance(block, ToolResultBlock):
-                                await output_queue.put({
-                                    "type": "tool_result",
-                                    "tool_use_id": block.tool_use_id,
-                                    "content": block.content,
-                                    "is_error": block.is_error,
-                                })
-                            elif isinstance(block, ToolUseBlock):
-                                logger.info(f"Tool: {block.name}({block.id})")
-                                if block.name == "TodoWrite":
-                                    try:
-                                        todos = block.input.get("todos", [])
-                                        await output_queue.put({
-                                            "type": "todo_update",
-                                            "todos": todos
-                                        })
-                                    except Exception as e:
-                                        logger.error(f"TodoWrite error: {e}")
-
-                    elif isinstance(message, UserMessage):
-                        for block in message.content:
-                            if isinstance(block, ToolResultBlock):
-                                await output_queue.put({
-                                    "type": "tool_result",
-                                    "tool_use_id": block.tool_use_id,
-                                    "content": block.content if isinstance(block.content, str) else str(block.content),
-                                    "is_error": block.is_error,
-                                })
-
-                    elif isinstance(message, SystemMessage):
-                        if isinstance(message.data, dict):
-                            if message.data.get("subtype") == "init":
-                                claude_session_id = message.data.get("session_id")
-                                if claude_session_id:
-                                    context["conversation_id"] = claude_session_id
-                                    logger.info(f"💬 Conversation ID: {claude_session_id}")
-
-                                    # Save conversation to DB (new conversation only)
-                                    if context["user_id"] and context["first_prompt"] and not context["is_resuming"] and not session_initialized:
-                                        await save_conversation(
-                                            user_id=context["user_id"],
-                                            conversation_id=claude_session_id,
-                                            first_message=context["first_prompt"],
-                                            model="sonnet",
-                                            workspace_path=context["workspace"],
-                                            metadata={
-                                                "org_id": context["org_id"],
-                                                "project_id": context["project_id"]
-                                            }
-                                        )
-                                        session_initialized = True
-                                    elif context["is_resuming"]:
-                                        await update_conversation_activity(claude_session_id)
-
-                                    # Save user message
-                                    if not user_message_saved and current_prompt:
-                                        await save_message(
-                                            conversation_id=claude_session_id,
-                                            role="user",
-                                            content=current_prompt,
-                                            message_type="text"
-                                        )
-                                        user_message_saved = True
-
-                                    # Send conversation_id to frontend
-                                    # NOTE: Use different type than "session_created" to avoid
-                                    # overwriting session_id on frontend (needed for interrupts)
-                                    await output_queue.put({
-                                        "type": "conversation_started",
-                                        "conversation_id": claude_session_id
-                                    })
-
-                    elif isinstance(message, ResultMessage):
-                        await output_queue.put({
-                            "type": message.subtype,
-                            "result": message.result
-                        })
-
-                        # Save assistant message when result received
-                        if context["conversation_id"] and assistant_text_buffer:
-                            await save_message(
-                                conversation_id=context["conversation_id"],
-                                role="assistant",
-                                content="".join(assistant_text_buffer),
-                                message_type="text"
-                            )
-
-                        # Send complete signal to frontend (one turn done)
-                        await output_queue.put({"type": "complete"})
-                        logger.info("  Turn complete, waiting for next message...")
-
-                        # Reset buffers for next turn
-                        assistant_text_buffer = []
-                        user_message_saved = False
-
-                # receive_response() exhausted for this turn, wait briefly then check for more
-                logger.debug("📭 receive_response() exhausted, waiting for next turn...")
-                await asyncio.sleep(0.1)
-
-            except asyncio.CancelledError:
-                logger.info("🛑 Response processor cancelled")
-                break
-            except Exception as e:
-                logger.error(f"Response processor error: {e}", exc_info=True)
-                # Don't break on error, try to continue
-                await asyncio.sleep(0.5)
-
-    async def interrupt_monitor():
-        """Monitor for interrupt signals and call client.interrupt()."""
-        nonlocal interrupted
-
-        while True:  # Keep monitoring even after interrupts
-            try:
-                await asyncio.sleep(0.1)
-
-                session_id = context["session_id"]
-                if not session_id or session_id not in stop_events:
-                    continue
-
-                if stop_events[session_id].is_set():
-                    logger.info(f"🛑 Interrupt monitor: stop event for {session_id}")
-                    interrupted = True
-                    stop_events[session_id].clear()
-
-                    if client_ref["client"]:
-                        try:
-                            await client_ref["client"].interrupt()
-                            logger.info("  SDK interrupt called")
-                        except Exception as e:
-                            logger.error(f"SDK interrupt error: {e}")
-
-                    await output_queue.put({
-                        "type": "interrupted",
-                        "session_id": session_id
-                    })
-                    # Don't return - keep monitoring for future interrupts
-                    # The interrupted flag will be reset when new message arrives
-
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                logger.error(f"Interrupt monitor error: {e}")
-
-    try:
-        # Wait for first message to initialize context
-        logger.info("⏳ Streaming agent: Waiting for first message...")
-        first_data = await agent_queue.get()
-
-        if first_data is None:
-            logger.info("📭 No messages, ending session")
-            return
-
-        # Initialize context from first message
-        context["session_id"] = first_data.get("session_id", "")
-        context["auth_token"] = first_data.get("auth_token", "") or context["auth_token"]
-        context["conversation_id"] = first_data.get("conversation_id", "")
-        context["user_id"] = first_data.get("user_id", "") or context["user_id"]
-        context["org_id"] = first_data.get("org_id", "")
-        context["project_id"] = first_data.get("project_id", "")
-        context["first_prompt"] = first_data.get("prompt", "")
-        context["is_resuming"] = bool(context["conversation_id"])
-        current_prompt = context["first_prompt"]
-
-        if not context["user_id"] and context["auth_token"]:
-            context["user_id"] = extract_user_id_from_token(context["auth_token"]) or ""
-
-        logger.info(f"👤 Session: user={context['user_id']}, session={context['session_id']}")
-
-        # Initialize stop event
-        if context["session_id"]:
-            stop_events[context["session_id"]] = asyncio.Event()
-
-        # Set auth tokens
-        set_auth_token(context["auth_token"])
-        if context["org_id"]:
-            set_org_id(context["org_id"])
-        if context["project_id"]:
-            set_project_id(context["project_id"])
-
-        # Get user workspace
-        if context["user_id"]:
-            context["workspace"] = str(get_user_workspace_path(context["user_id"]))
-        else:
-            context["workspace"] = "."
-
-        # Load MCP servers
-        incident_tools_server = create_incident_tools_server()
-        mcp_servers = {"incident_tools": incident_tools_server}
-
-        user_mcp_servers = await get_user_mcp_servers(
-            auth_token=context["auth_token"],
-            user_id=context["user_id"]
-        )
-        if user_mcp_servers:
-            mcp_servers.update(user_mcp_servers)
-
-        # Load plugins
-        user_plugins = []
-        if context["user_id"]:
-            user_plugins = load_user_plugins(context["user_id"])
-            if user_plugins:
-                logger.info(f"📦 Loaded {len(user_plugins)} plugins")
-
-        # Load allowed tools
-        allowed_tools = [
-            "mcp__incident_tools__get_incidents_by_time",
-            "mcp__incident_tools__get_incidents_by_id",
-            "mcp__incident_tools__get_current_time",
-            "mcp__incident_tools__get_incident_stats"
-        ]
-        if context["user_id"]:
-            user_allowed = await get_user_allowed_tools(context["user_id"])
-            if user_allowed:
-                allowed_tools.extend(user_allowed)
-
-        # Build hooks config
-        actual_hooks_config = build_hooks_config(
-            user_id=context["user_id"],
-            session_id=context["session_id"],
-            org_id=context["org_id"],
-            project_id=context["project_id"],
-        ) if context["user_id"] else hooks_config
-
-        # Audit log first message
-        if context["user_id"] and context["first_prompt"]:
-            audit = get_audit_service()
-            await audit.log_chat_message(
-                user_id=context["user_id"],
-                session_id=context["session_id"],
-                conversation_id=context["conversation_id"],
-                message_preview=context["first_prompt"],
-                org_id=context["org_id"],
-                project_id=context["project_id"]
-            )
-
-        # Create SDK options - use resume if continuing conversation
-        resume_id = context["conversation_id"] if context["conversation_id"] else None
-
-        options = ClaudeAgentOptions(
-            can_use_tool=permission_callback,
-            permission_mode="default",
-            cwd=context["workspace"],
-            model="sonnet",
-            resume=resume_id,
-            mcp_servers=mcp_servers,
-            plugins=user_plugins,
-            setting_sources=["project", "user"],
-            allowed_tools=allowed_tools,
-            hooks=actual_hooks_config,
-        )
-
-        # Create message generator that includes first message
-        async def full_message_generator():
-            # Yield first message
-            logger.info(f"📤 Yielding first message: {context['first_prompt'][:50]}...")
-            yield {
-                "type": "user",
-                "message": {
-                    "role": "user",
-                    "content": context["first_prompt"]
-                }
-            }
-
-            # Then yield subsequent messages from queue
-            async for msg in message_generator():
-                yield msg
-
-        # TRUE STREAMING MODE: ONE client, ONE query() call with generator
-        logger.info("Starting TRUE streaming mode...")
-        async with ClaudeSDKClient(options) as client:
-            client_ref["client"] = client
-
-            # Start interrupt monitor
-            monitor_task = asyncio.create_task(interrupt_monitor(), name="interrupt_monitor")
-
-            try:
-                # Run query and response processing concurrently
-                # query() feeds messages from generator to SDK
-                # process_responses() handles SDK responses
-                query_task = asyncio.create_task(
-                    client.query(full_message_generator()),
-                    name="query"
-                )
-                response_task = asyncio.create_task(
-                    process_responses(),
-                    name="responses"
-                )
-
-                # Wait for query_task to complete (generator exhausts when WebSocket closes)
-                # response_task may complete multiple times per turn, but query controls session lifetime
-                #
-                # TRUE STREAMING: Keep session alive until generator exhausts (WebSocket disconnects)
-                # DO NOT cancel query_task when response_task completes - that's just one turn ending!
-                try:
-                    await query_task
-                    logger.info("📭 Message generator exhausted (WebSocket closed)")
-                except asyncio.CancelledError:
-                    logger.info("🛑 Query task cancelled")
-                except Exception as e:
-                    logger.error(f"Query task error: {e}", exc_info=True)
-
-                # Now wait for any remaining responses
-                if not response_task.done():
-                    logger.info("⏳ Waiting for remaining responses...")
-                    try:
-                        await asyncio.wait_for(response_task, timeout=5.0)
-                    except asyncio.TimeoutError:
-                        logger.info("⏰ Response task timeout, cancelling")
-                        response_task.cancel()
-                    except asyncio.CancelledError:
-                        pass
-                    except Exception as e:
-                        logger.error(f"Response task error: {e}")
-
-            finally:
-                # Cleanup
-                if not monitor_task.done():
-                    monitor_task.cancel()
-                    try:
-                        await monitor_task
-                    except asyncio.CancelledError:
-                        pass
-
-        logger.info("  Streaming session ended")
-
-    except asyncio.CancelledError:
-        logger.info("🤖 Streaming agent: cancelled")
-        raise
-    except Exception as e:
-        logger.error(f"Streaming agent error: {e}", exc_info=True)
-        try:
-            await output_queue.put({
-                "type": "error",
-                "error": sanitize_error_message(e, "in streaming agent")
-            })
-        except Exception:
-            pass
-        raise
-    finally:
-        if context["session_id"] and context["session_id"] in stop_events:
-            del stop_events[context["session_id"]]
-        logger.info("🧹 Streaming agent finished")
-
-
-async def agent_task(
-    agent_queue: asyncio.Queue,
-    stop_events: Dict[str, asyncio.Event],
-    output_queue: asyncio.Queue,
-    permission_callback,
-    websocket: WebSocket = None,  # Optional, only for sync
-    hooks_config: Dict[str, Any] = None,  # Audit hooks configuration
-):
-    """Process agent messages and handle responses."""
-    current_auth_token = None
-    current_session_id = None
-    current_conversation_id = None  # Claude conversation ID (separate from session_id)
-    current_user_id = None  # User ID (from Zero-Trust session OR JWT token)
-    current_first_prompt = None  # First prompt for conversation save
-    current_workspace = None  # User workspace path
-    current_org_id = None  # Organization ID for metadata
-    current_project_id = None  # Project ID for metadata
-    is_resuming = False  # Flag to track if we're resuming an existing conversation
-
-    try:
-        while True:
-            # Get message from agent queue
-            logger.info("⏳ Agent task: Waiting for next message from queue...")
-            data = await agent_queue.get()
-            logger.info(f"📨 Agent task: Got message from queue: {data.get('prompt', '')[:30] if data else 'None'}...")
-
-            # Check for end of messages
-            if data is None:
-                logger.info("🤖 Agent task: End of messages")
-                break
-
-            # Get session id and auth token from data
-            # NOTE: session_id is for stop events tracking
-            # conversation_id is for Claude conversation resume (separate concept!)
-            session_id = data.get("session_id", "")
-            auth_token = data.get("auth_token", "")
-            conversation_id = data.get("conversation_id", "")  # For Claude resume
-            direct_user_id = data.get("user_id", "")  # From Zero-Trust secure flow
-
-            # Update current session (for stop events)
-            if session_id:
-                current_session_id = session_id
-
-                # Initialize stop event for this session
-                if session_id not in stop_events:
-                    stop_events[session_id] = asyncio.Event()
-
-                # Clear the event (reset for new message)
-                stop_events[session_id].clear()
-
-            # Update current conversation ID (for Claude resume)
-            # This is separate from session_id - see distinction:
-            # - session_id: WebSocket/Zero-Trust session (for security/stop events)
-            # - conversation_id: Claude conversation (for AI context resume)
-            if conversation_id:
-                current_conversation_id = conversation_id
-                is_resuming = True  # Mark that we're resuming an existing conversation
-                logger.info(f"💬 Conversation ID received (resuming): {conversation_id}")
-            else:
-                is_resuming = False  # New conversation
-
-            # Store first prompt for conversation save (only if new conversation)
-            prompt = data.get("prompt", "")
-            logger.info(f"📨 Received: prompt={prompt[:30] if prompt else 'NONE'}..., conversation_id={conversation_id}, is_resuming={is_resuming}")
-            if prompt and not current_first_prompt and not is_resuming:
-                current_first_prompt = prompt
-                logger.info(f"📝 First prompt stored: {current_first_prompt[:30]}...")
-
-            # Store org_id and project_id for metadata
-            org_id = data.get("org_id", "")
-            if org_id:
-                current_org_id = org_id
-
-            project_id = data.get("project_id", "")
-            if project_id:
-                current_project_id = project_id
-
-            # Update auth token (needed by incident_tools to call Go backend API)
-            # This is separate from user_id - both secure and unsecure flows need this
-            if auth_token:
-                current_auth_token = auth_token
-                logger.info(f"🔑 Auth token received (length: {len(auth_token)})")
-
-            # Update current user ID
-            # Priority: direct user_id from Zero-Trust > extract from JWT token
-            if direct_user_id:
-                current_user_id = direct_user_id
-                logger.info(f"👤 User ID from Zero-Trust session: {current_user_id}")
-            elif auth_token:
-                extracted_user_id = extract_user_id_from_token(auth_token)
-                if extracted_user_id:
-                    current_user_id = extracted_user_id
-                    logger.info(f"👤 User ID extracted from JWT: {current_user_id}")
-
-            # Audit log: chat message sent
-            if prompt and current_user_id:
-                audit = get_audit_service()
-                await audit.log_chat_message(
-                    user_id=current_user_id,
-                    session_id=session_id or current_session_id or "",
-                    conversation_id=conversation_id or current_conversation_id,
-                    message_preview=prompt,
-                    org_id=org_id or current_org_id,
-                    project_id=project_id or current_project_id
-                )
-
-            # Note: Bucket sync is now handled by frontend via /api/sync-bucket
-            # before WebSocket connection to ensure skills are ready
-
-            # Set the auth token for incident_tools to use
-            set_auth_token(current_auth_token or "")
-
-            # Set org_id for ReBAC tenant isolation (MANDATORY for API calls)
-            org_id = data.get("org_id", "")
-            if org_id:
-                set_org_id(org_id)
-                logger.info(f"🏢 Organization ID set: {org_id}")
-
-            # Set project_id for ReBAC project filtering (OPTIONAL)
-            project_id = data.get("project_id", "")
-            if project_id:
-                set_project_id(project_id)
-                logger.info(f"📁 Project ID set: {project_id}")
-
-            # Use the current user_id (from Zero-Trust or JWT)
-            user_id = current_user_id
-
-            # Get user workspace directory (isolated per user)
-            if user_id:
-                user_workspace = str(get_user_workspace_path(user_id))
-                current_workspace = user_workspace  # Store for conversation metadata
-            else:
-                user_workspace = "."
-
-            logger.info(f"📁 User workspace: {user_workspace}")
-
-            # Create MCP server with all incident tools
-            incident_tools_server = create_incident_tools_server()
-
-            mcp_servers = {"incident_tools": incident_tools_server}
-
-            # Get user MCP servers
-            # Secure flow: user_id from Zero-Trust session (no auth_token needed)
-            # Unsecure flow: auth_token for JWT extraction
-            user_mcp_servers = await get_user_mcp_servers(
-                auth_token=current_auth_token or "",
-                user_id=user_id or ""
-            )
-
-            if user_mcp_servers:
-                mcp_servers.update(user_mcp_servers)
-
-            logger.info(f"📁 User MCP servers: {mcp_servers}")
-
-            # Load user plugins from installed_plugins.json
-            user_plugins = []
-            if user_id:
-                user_plugins = load_user_plugins(user_id)
-                if user_plugins:
-                    logger.info(f"📦 Loaded {len(user_plugins)} user plugins")
-                else:
-                    logger.debug(f"No plugins installed for user {user_id}")
-
-            # Load allowed tools
-            allowed_tools = [
-                "mcp__incident_tools__get_incidents_by_time",
-                "mcp__incident_tools__get_incidents_by_id",
-                "mcp__incident_tools__get_current_time",
-                "mcp__incident_tools__get_incident_stats"
-            ]
-            if user_id:
-                user_allowed = await get_user_allowed_tools(user_id)
-                if user_allowed:
-                    allowed_tools.extend(user_allowed)
-                    logger.info(f"  Loaded {len(user_allowed)} allowed tools from DB")
-
-            # Use conversation_id for Claude resume (NOT session_id!)
-            # - session_id: WebSocket/Zero-Trust session (for security, stop events)
-            # - conversation_id: Claude conversation (for AI context, multi-turn chat)
-            # If conversation_id is provided, Claude will resume that conversation.
-            # If not provided (empty/None), Claude starts a new conversation.
-            resume_id = current_conversation_id if current_conversation_id else None
-
-            if resume_id:
-                logger.info(f"💬 Resuming Claude conversation: {resume_id}")
-            else:
-                logger.info(f"💬 Starting new Claude conversation")
-
-            # Build audit hooks with actual user context from message data
-            # (org_id/project_id come from message, not available at connection time)
-            actual_hooks_config = build_hooks_config(
-                user_id=current_user_id or "",
-                session_id=current_session_id or "",
-                org_id=current_org_id,
-                project_id=current_project_id,
-            ) if current_user_id else hooks_config
-
-            options = ClaudeAgentOptions(
-                can_use_tool=permission_callback,
-                permission_mode="default",
-                cwd=user_workspace,
-                model="sonnet",
-                resume=resume_id,  # Use conversation_id, not session_id!
-                mcp_servers=mcp_servers,
-                plugins=user_plugins,
-                setting_sources=["project","user"],
-                allowed_tools=allowed_tools,
-                hooks=actual_hooks_config,  # Audit hooks with org_id/project_id
-            )
-            async with ClaudeSDKClient(options) as client:
-                logger.info("\n📝 Sending query to Claude...")
-
-                await client.query(data["prompt"])
-
-                logger.info("\n📨 Receiving response...")
-
-                # Accumulate assistant text for saving to DB
-                assistant_text_buffer = []
-                user_message_saved = False  # Track if we've saved the user message
-                interrupted = False  # Flag to track if interrupted
-
-                # Concurrent interrupt monitor - runs alongside receive_response
-                # This allows interrupts to work even when blocked waiting for API/tool responses
-                async def interrupt_monitor():
-                    nonlocal interrupted
-                    if not session_id or session_id not in stop_events:
-                        return
-
-                    stop_event = stop_events[session_id]
-                    while not interrupted:
-                        # Wait for stop event with short polling interval
-                        try:
-                            # Check every 100ms for responsiveness
-                            await asyncio.wait_for(
-                                asyncio.shield(stop_event.wait()),
-                                timeout=0.1
-                            )
-                            # Stop event was set
-                            if stop_event.is_set():
-                                logger.info(f"🛑 Interrupt monitor: Stop event detected for session: {session_id}")
-                                try:
-                                    await client.interrupt()
-                                    interrupted = True
-                                    stop_event.clear()
-                                    await output_queue.put(
-                                        {"type": "interrupted", "session_id": session_id}
-                                    )
-                                    logger.info("  Agent interrupted by monitor")
-                                except Exception as e:
-                                    logger.error(f"Error in interrupt monitor: {e}", exc_info=True)
-                                return
-                        except asyncio.TimeoutError:
-                            # Timeout is expected - continue polling
-                            continue
-                        except asyncio.CancelledError:
-                            return
-
-                # Start interrupt monitor as concurrent task
-                monitor_task = asyncio.create_task(interrupt_monitor(), name="interrupt_monitor")
-
-                try:
-                    async for message in client.receive_response():
-                        # Check if we were interrupted - SDK will stop generating after interrupt()
-                        # Don't use break as it can cause asyncio cleanup issues
-                        if interrupted:
-                            logger.info("🛑 Receive loop - interrupted, waiting for SDK to finish")
-                            continue  # Let SDK complete naturally after interrupt
-
-                        logger.info(f"Message: {message}")
-
-                        # Process message normally
-                        logger.debug(f"Received message: {message}")
-                        if isinstance(message, AssistantMessage):
-                            for block in message.content:
-                                if isinstance(block, ThinkingBlock):
-                                    await output_queue.put(
-                                        {"type": "thinking", "content": block.thinking}
-                                    )
-                                elif isinstance(block, TextBlock):
-                                    await output_queue.put(
-                                        {"type": "text", "content": block.text}
-                                    )
-                                    # Accumulate text for saving to DB
-                                    assistant_text_buffer.append(block.text)
-                                elif isinstance(block, ToolResultBlock):
-                                    await output_queue.put(
-                                        {
-                                            "type": "tool_result",
-                                            "tool_use_id": block.tool_use_id,
-                                            "content": block.content,
-                                            "is_error": block.is_error,
-                                        }
-                                    )
-                                elif isinstance(block, ToolUseBlock):
-                                    # Don't send tool_use to frontend - permission_request already shows tool info
-                                    # This avoids duplicate display of the same tool call
-                                    logger.info(f"Tool use: {block.name}({block.id})")
-
-                                    # Special handling for TodoWrite - send todo_update event
-                                    if block.name == "TodoWrite":
-                                        try:
-                                            todos = block.input.get("todos", [])
-                                            logger.info(f"📝 Todo update detected: {len(todos)} tasks")
-                                            await output_queue.put({
-                                                "type": "todo_update",
-                                                "todos": todos
-                                            })
-                                        except Exception as e:
-                                            logger.error(f"Error processing TodoWrite: {e}", exc_info=True)
-
-                        # Handle UserMessage (tool results from SDK)
-                        # Send to frontend so users can see what agent is executing
-                        if isinstance(message, UserMessage):
-                            logger.info(f"UserMessage received with {len(message.content)} blocks")
-                            for block in message.content:
-                                if isinstance(block, ToolResultBlock):
-                                    # Send tool execution result to frontend
-                                    await output_queue.put({
-                                        "type": "tool_result",
-                                        "tool_use_id": block.tool_use_id,
-                                        "content": block.content if isinstance(block.content, str) else str(block.content),
-                                        "is_error": block.is_error,
-                                    })
-                                    logger.debug(f"Sent tool result to frontend: {block.tool_use_id}")
-
-                        if isinstance(message, SystemMessage):
-                            if isinstance(message.data, dict):
-                                if message.data.get("subtype") == "init":
-                                    # Claude SDK returns its conversation session_id
-                                    # This is DIFFERENT from Zero-Trust session_id!
-                                    # - session_id: Zero-Trust WebSocket session (for security)
-                                    # - claude_session_id: Claude conversation (for AI context)
-                                    claude_session_id = message.data.get("session_id")
-
-                                    # Update current_conversation_id for resume
-                                    if claude_session_id:
-                                        current_conversation_id = claude_session_id
-                                        logger.info(f"💬 Claude conversation started: {claude_session_id}")
-
-                                        # Save conversation to database for history/resume
-                                        # Only save if it's a new conversation (not resuming)
-                                        logger.info(f"📝 Save conversation check: user_id={current_user_id}, first_prompt={current_first_prompt[:30] if current_first_prompt else None}..., is_resuming={is_resuming}")
-                                        if current_user_id and current_first_prompt and not is_resuming:
-                                            await save_conversation(
-                                                user_id=current_user_id,
-                                                conversation_id=claude_session_id,
-                                                first_message=current_first_prompt,
-                                                model="sonnet",
-                                                workspace_path=current_workspace,
-                                                metadata={
-                                                    "org_id": current_org_id,
-                                                    "project_id": current_project_id
-                                                }
-                                            )
-                                        elif is_resuming:
-                                            # Update activity for resumed conversation
-                                            await update_conversation_activity(claude_session_id)
-
-                                        # Save user message to DB (only once per query)
-                                        # Use data["prompt"] to save current message, not just first
-                                        user_prompt = data.get("prompt", "")
-                                        if not user_message_saved and user_prompt:
-                                            await save_message(
-                                                conversation_id=claude_session_id,
-                                                role="user",
-                                                content=user_prompt,
-                                                message_type="text"
-                                            )
-                                            user_message_saved = True
-                                            logger.info(f"Saved user message for conversation {claude_session_id}")
-
-                                    # Send to client so they can save for resume
-                                    # Client should save conversation_id and send it back in next messages
-                                    await output_queue.put({
-                                        "type": "session_init",
-                                        "session_id": session_id,  # Zero-Trust session (unchanged)
-                                        "conversation_id": claude_session_id,  # Claude conversation (NEW!)
-                                    })
-
-                        if isinstance(message, ResultMessage):
-                            await output_queue.put(
-                                {"type": message.subtype, "result": message.result}
-                            )
-
-                            # Save assistant message to DB when response is complete
-                            if current_conversation_id and assistant_text_buffer:
-                                assistant_content = "".join(assistant_text_buffer)
-                                await save_message(
-                                    conversation_id=current_conversation_id,
-                                    role="assistant",
-                                    content=assistant_content,
-                                    message_type="text"
-                                )
-                                logger.info(f"Saved assistant message ({len(assistant_content)} chars) for conversation {current_conversation_id}")
-
-                    # Send complete signal to frontend (resets isSending state)
-                    await output_queue.put({"type": "complete"})
-                    logger.info("  Response complete")
-
-                finally:
-                    # Cancel interrupt monitor when receive loop finishes
-                    if not monitor_task.done():
-                        monitor_task.cancel()
-                        try:
-                            await monitor_task
-                        except asyncio.CancelledError:
-                            pass
-                    logger.info("🧹 Interrupt monitor stopped")
-
-            # Log when async with block exits - this is where loop should continue
-            logger.info("Claude client closed, ready for next message")
-
-    except asyncio.CancelledError:
-        logger.info("🤖 Agent task: Cancelled")
-        raise
-    except Exception as e:
-        try:
-            await output_queue.put({
-                "type": "error",
-                "error": sanitize_error_message(e, "in agent task")
-            })
-        except Exception:
-            pass
-        raise  # Propagate error
-    finally:
-        # Cleanup session
-        if current_session_id and current_session_id in stop_events:
-            del stop_events[current_session_id]
-            logger.info(f"🧹 Cleaned up stop event for session: {current_session_id}")
-        logger.info("🧹 Agent task finished")
+# Legacy SDK agent functions removed - now using HybridAgent
 
 
 # API routes moved to separate files (routes_*.py)
@@ -1640,20 +455,35 @@ async def verify_websocket_auth(websocket: WebSocket) -> tuple[bool, str]:
 
 @app.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
+    """
+    Production WebSocket endpoint using HybridAgent.
+    
+    Combines:
+    - SDK-style orchestration for smart tool planning
+    - Token-level streaming for smooth UI experience
+    - MCP server support for external integrations
+    
+    Protocol:
+    1. Client connects with ?token=JWT&org_id=...&project_id=...
+    2. Server authenticates, loads MCP servers, creates HybridAgent
+    3. Client sends: {"prompt": "...", "session_id": "...", "conversation_id": "..."}
+    4. Server streams: {"type": "delta", "content": "token"}
+    5. Server sends tool events during processing
+    6. Server sends: {"type": "complete"} when done
+    """
     audit = get_audit_service()
     client_ip = websocket.client.host if websocket.client else None
 
-    # Extract org_id and project_id from query params for audit logging
-    # These are passed from frontend when connecting WebSocket
+    # Extract params from query
     ws_org_id = websocket.query_params.get("org_id") or None
     ws_project_id = websocket.query_params.get("project_id") or None
-    logger.info(f"WebSocket query params - org_id: {ws_org_id}, project_id: {ws_project_id}")
+    token = websocket.query_params.get("token") or ""
+    logger.info(f"WebSocket params - org_id: {ws_org_id}, project_id: {ws_project_id}")
 
     # Authenticate BEFORE accepting connection (prevents DoS)
     is_valid, result = await verify_websocket_auth(websocket)
     if not is_valid:
         logger.warning(f"🚫 WebSocket auth failed: {result}")
-        # Log auth failure
         await audit.log_auth_failed(
             user_id=None,
             error_code="INVALID_TOKEN",
@@ -1664,257 +494,297 @@ async def websocket_chat(websocket: WebSocket):
         await websocket.close(code=4001, reason="Unauthorized")
         return
 
-    # Now safe to accept - user is authenticated
+    # Accept connection - user is authenticated
     await websocket.accept()
+    user_id = result
+    session_id = str(uuid.uuid4())
+    logger.info(f"WebSocket accepted for user: {user_id}")
 
-    # Store user_id and auth_token for session
-    authenticated_user_id = result
-    ws_auth_token = websocket.query_params.get("token") or ""
-    ws_session_id = str(uuid.uuid4())  # Generate unique session ID for this WebSocket
-    logger.info(f"WebSocket accepted for user: {authenticated_user_id}")
+    # Initialize MCP tool manager
+    mcp_manager = None
+    mcp_tools = []
+    
+    try:
+        # Load user's MCP servers
+        logger.info(f"Loading MCP servers for user: {user_id}")
+        user_mcp_config = await get_user_mcp_servers(auth_token=token, user_id=user_id)
+        
+        if user_mcp_config:
+            logger.info(f"Found {len(user_mcp_config)} MCP server configs")
+            pool = await get_mcp_pool()
+            mcp_manager = await pool.get_servers_for_user(user_id, user_mcp_config)
+            mcp_tools = mcp_manager.get_all_tools()
+            logger.info(f"Loaded {len(mcp_tools)} MCP tools")
+        else:
+            logger.info("No MCP servers configured")
+            mcp_manager = MCPToolManager()
+            
+    except Exception as e:
+        logger.error(f"Failed to load MCP servers: {e}", exc_info=True)
+        mcp_manager = MCPToolManager()
+    
+    # Combine built-in and MCP tools
+    all_tools = INCIDENT_TOOLS.copy()
+    all_tools.extend(mcp_tools)
+    
+    # Create HybridAgent config
+    config = HybridAgentConfig(
+        model="claude-sonnet-4-20250514",
+        streaming_model="claude-sonnet-4-20250514",
+        planning_model="claude-sonnet-4-20250514",
+        max_tokens=4096,
+        max_planning_tokens=1024,
+        tools=all_tools,
+        system_prompt="""You are an AI assistant specialized in incident response and DevOps.
+You help users manage incidents, analyze alerts, and troubleshoot issues.
 
-    # Send session_id to client IMMEDIATELY so they can use it for interrupts
-    # This is separate from Claude's conversation_id which comes later
-    await websocket.send_json({
-        "type": "session_created",
-        "session_id": ws_session_id,
-        "message": "WebSocket session established. Use this session_id for interrupts."
-    })
-    logger.info(f"📤 Sent session_created to client: {ws_session_id}")
+## Tool Selection Guidelines
 
-    # Log session created with org_id and project_id from URL
+**For InRes Incident Operations (ALWAYS use built-in tools):**
+- Use `get_incidents` to list incidents from InRes
+- Use `get_incident_details` to fetch a specific incident
+- Use `acknowledge_incident` to acknowledge an incident
+- Use `resolve_incident` to resolve an incident
+- Use `get_incident_stats` for statistics
+
+**For External Integrations (MCP tools prefixed with mcp__):**
+- Use Coralogix MCP tools for querying logs
+- Use Confluence MCP tools for documentation
+- Use other MCP tools for their respective services
+
+Be concise but thorough in your responses."""
+    )
+    
+    # Create HybridAgent
+    agent = HybridAgent(config=config)
+    
+    # Create tool context and executor
+    tool_context = ToolContext(org_id=ws_org_id, project_id=ws_project_id)
+    tool_executor = create_tool_executor(
+        auth_token=token,
+        context=tool_context,
+        mcp_manager=mcp_manager,
+        user_id=user_id,
+        session_id=session_id
+    )
+    
+    # Log session created
     await audit.log_session_created(
-        user_id=authenticated_user_id,
-        session_id=ws_session_id,
+        user_id=user_id,
+        session_id=session_id,
         source_ip=client_ip,
         user_agent=websocket.headers.get("user-agent"),
         org_id=ws_org_id,
         project_id=ws_project_id
     )
 
-    # Build audit hooks config for tool execution logging (with org_id/project_id)
-    hooks_config = build_hooks_config(
-        user_id=authenticated_user_id,
-        session_id=ws_session_id,
-        org_id=ws_org_id,
-        project_id=ws_project_id
-    )
+    # Send session info to client
+    await websocket.send_json({
+        "type": "session_created",
+        "session_id": session_id,
+        "conversation_id": session_id,
+        "agent_type": "hybrid",
+        "message": "Hybrid agent session established",
+        "mcp_servers": mcp_manager.server_count if mcp_manager else 0,
+        "total_tools": len(all_tools)
+    })
+    logger.info(f"📤 Sent session_created: {session_id}")
 
-    # Create separate queues with size limits
-    agent_queue = asyncio.Queue(maxsize=100)
-    interrupt_queue = asyncio.Queue(maxsize=10)
-    permission_response_queue = asyncio.Queue(maxsize=20)
+    # Output queue for streaming events
+    output_queue: asyncio.Queue = asyncio.Queue()
+    
+    # Track session state
+    is_first_message = True
+    conversation_id = session_id
+    stream_task = None
+    sender_task = None
+    heartbeat_task_ref = None
 
-    # Shared stop events dictionary (per session) - using asyncio.Event for thread safety
-    stop_events: Dict[str, asyncio.Event] = {}
+    async def send_events():
+        """Send events from queue to WebSocket."""
+        try:
+            while True:
+                event = await output_queue.get()
+                if event is None:
+                    break
+                await websocket.send_json(event)
+        except WebSocketDisconnect:
+            logger.info("WebSocket disconnected during send")
+        except Exception as e:
+            logger.error(f"Send error: {e}")
 
-    # Create output queue for agent messages
-    output_queue = asyncio.Queue(maxsize=100)
+    async def heartbeat():
+        """Send periodic pings."""
+        try:
+            while True:
+                await asyncio.sleep(30)
+                await output_queue.put({"type": "ping", "timestamp": time.time()})
+        except asyncio.CancelledError:
+            pass
 
     try:
-        # Define permission callback that uses queues instead of direct WebSocket read
-        async def _my_permission_callback(
-            tool_name: str, input_data: dict, context: ToolPermissionContext
-        ) -> PermissionResultAllow | PermissionResultDeny:
-            """
-            Control tool permissions based on tool type and input.
-
-            IMPORTANT: This callback does NOT read from WebSocket directly.
-            Instead, it sends request via output_queue and waits for response from permission_response_queue.
-            """
-
-            # Log the tool request
-            tool_usage_log.append(
-                {
-                    "tool": tool_name,
-                    "input": input_data,
-                    "suggestions": context.suggestions,
-                }
-            )
-
-            logger.info(f"\nTool Permission Request: {tool_name}")
-            logger.debug(f"   Input: {json.dumps(input_data, indent=2)}")
-
-            # Generate unique request ID
-            request_id = str(uuid.uuid4())
-
-            # Audit log: tool requested
-            await audit.log_tool_requested(
-                user_id=authenticated_user_id,
-                session_id=ws_session_id,
-                tool_name=tool_name,
-                tool_input=input_data,
-                request_id=request_id
-            )
-
-            # Send permission request with unique ID via output queue
-            await output_queue.put(
-                {
-                    "type": "permission_request",
-                    "request_id": request_id,
-                    "tool_name": tool_name,
-                    "input_data": input_data,
-                    "suggestions": context.suggestions,
-                }
-            )
-
-            logger.info(
-                f"   ❓ Waiting for user approval (request_id: {request_id})..."
-            )
-
-            # Wait for response from queue (not directly from WebSocket!)
-            while True:
-                response = await permission_response_queue.get()
-
-                # Check for end signal
-                if response is None:
-                    logger.warning("Permission callback: End of messages")
-                    return PermissionResultDeny(message="Connection closed")
-
-                # Match request ID if present
-                if (
-                    response.get("request_id")
-                    and response.get("request_id") != request_id
-                ):
-                    # Not our response, put it back for other callbacks
-                    await permission_response_queue.put(response)
-                    await asyncio.sleep(0.01)  # Yield to event loop
+        sender_task = asyncio.create_task(send_events())
+        heartbeat_task_ref = asyncio.create_task(heartbeat())
+        
+        while True:
+            try:
+                raw_message = await websocket.receive_text()
+                message = json.loads(raw_message)
+                
+                msg_type = message.get("type", "chat")
+                
+                # Handle pong
+                if msg_type == "pong":
                     continue
-
-                # Process response
-                if response.get("allow") in ("y", "yes"):
-                    logger.info("  Tool approved by user")
-                    # Audit log: tool approved
-                    await audit.log_tool_approved(
-                        user_id=authenticated_user_id,
-                        session_id=ws_session_id,
-                        tool_name=tool_name,
-                        request_id=request_id
-                    )
-                    return PermissionResultAllow()
-                else:
-                    logger.info("Tool denied by user")
-                    # Audit log: tool denied
-                    await audit.log_tool_denied(
-                        user_id=authenticated_user_id,
-                        session_id=ws_session_id,
-                        tool_name=tool_name,
-                        request_id=request_id
-                    )
-                    return PermissionResultDeny(message="User denied permission")
-
-        # Start all tasks
-        heartbeat = asyncio.create_task(
-            heartbeat_task(websocket, output_queue=output_queue, interval=30), name="heartbeat"
-        )
-
-        router = asyncio.create_task(
-            message_router(
-                websocket, agent_queue, interrupt_queue, permission_response_queue
-            ),
-            name="router",
-        )
-
-        # NEW: WebSocket sender task - decouples agent from WebSocket
-        sender = asyncio.create_task(
-            websocket_sender(websocket, output_queue), name="sender"
-        )
-
-        interrupt = asyncio.create_task(
-            interrupt_task(interrupt_queue, stop_events, output_queue), name="interrupt"
-        )
-
-        # Use streaming mode for continuous message handling
-        agent = asyncio.create_task(
-            agent_task_streaming(
-                agent_queue,
-                stop_events,
-                output_queue,
-                _my_permission_callback,
-                websocket,
-                hooks_config,  # Audit hooks for tool execution logging
-                initial_user_id=authenticated_user_id,
-                initial_auth_token=ws_auth_token,
-            ),
-            name="agent",
-        )
-
-        # Wait for ALL tasks to complete
-        tasks = [heartbeat, router, sender, interrupt, agent]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Check for errors
-        for i, (task, result) in enumerate(zip(tasks, results)):
-            if isinstance(result, Exception):
-                logger.error(
-                    f"Task {task.get_name()} failed: {result}", exc_info=result
+                
+                # Handle interrupt
+                if msg_type == "interrupt":
+                    logger.info("Interrupt requested")
+                    agent.interrupt()
+                    if stream_task and not stream_task.done():
+                        stream_task.cancel()
+                        try:
+                            await stream_task
+                        except asyncio.CancelledError:
+                            pass
+                    await websocket.send_json({"type": "interrupted"})
+                    continue
+                
+                # Handle clear history
+                if msg_type == "clear_history":
+                    agent.clear_history()
+                    await websocket.send_json({
+                        "type": "history_cleared",
+                        "message": "Conversation history cleared"
+                    })
+                    continue
+                
+                # Handle chat message
+                prompt = message.get("prompt", "")
+                if not prompt:
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Empty prompt"
+                    })
+                    continue
+                
+                # Update context if provided
+                msg_org_id = message.get("org_id")
+                msg_project_id = message.get("project_id")
+                if msg_org_id or msg_project_id:
+                    tool_context.update(org_id=msg_org_id, project_id=msg_project_id)
+                
+                # Update conversation_id if provided (for resume)
+                if message.get("conversation_id"):
+                    conversation_id = message.get("conversation_id")
+                
+                logger.info(f"Processing: {prompt[:50]}...")
+                
+                # Audit: log chat message
+                await audit.log_chat_message(
+                    user_id=user_id,
+                    session_id=session_id,
+                    conversation_id=conversation_id,
+                    message_preview=prompt[:100],
+                    org_id=tool_context.org_id,
+                    project_id=tool_context.project_id
                 )
-
-    except WebSocketDisconnect:
-        logger.info("🔌 WebSocket disconnected")
+                
+                # Save conversation on first message
+                if is_first_message:
+                    await save_conversation(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        first_message=prompt,
+                        model="claude-sonnet-4-hybrid",
+                        metadata={
+                            "org_id": tool_context.org_id,
+                            "project_id": tool_context.project_id,
+                            "mode": "hybrid"
+                        }
+                    )
+                    is_first_message = False
+                
+                # Save user message
+                await save_message(
+                    conversation_id=conversation_id,
+                    role="user",
+                    content=prompt
+                )
+                
+                # Cancel existing stream
+                if stream_task and not stream_task.done():
+                    stream_task.cancel()
+                    try:
+                        await stream_task
+                    except asyncio.CancelledError:
+                        pass
+                
+                # Process with hybrid agent
+                async def process_and_save():
+                    """Process with HybridAgent and save response."""
+                    response = await agent.process_message(
+                        prompt=prompt,
+                        output_queue=output_queue,
+                        tool_executor=tool_executor
+                    )
+                    
+                    if response:
+                        await save_message(
+                            conversation_id=conversation_id,
+                            role="assistant",
+                            content=response
+                        )
+                        await update_conversation_activity(conversation_id)
+                    
+                    return response
+                
+                stream_task = asyncio.create_task(process_and_save())
+                
+            except json.JSONDecodeError:
+                await websocket.send_json({
+                    "type": "error",
+                    "error": "Invalid JSON message"
+                })
+            except WebSocketDisconnect:
+                logger.info(f"WebSocket disconnected: {session_id}")
+                break
+                
     except Exception as e:
+        logger.error(f"WebSocket error: {e}", exc_info=True)
         try:
             await websocket.send_json({
                 "type": "error",
-                "error": sanitize_error_message(e, "in WebSocket connection")
+                "error": sanitize_error_message(e, "in WebSocket")
             })
         except Exception:
             pass
     finally:
-        # Cancel all tasks immediately
-        logger.info("🧹 Cleaning up tasks...")
-
-        # Signal end of messages to output queue
-        try:
+        # Cleanup
+        logger.info(f"Cleaning up session: {session_id}")
+        
+        if stream_task and not stream_task.done():
+            stream_task.cancel()
+        if heartbeat_task_ref and not heartbeat_task_ref.done():
+            heartbeat_task_ref.cancel()
+        if sender_task and not sender_task.done():
             await output_queue.put(None)
-        except Exception:
-            pass
-
-        # Get all running tasks and cancel them immediately
-        all_tasks = [
-            t for t in [heartbeat, router, sender, interrupt, agent] if not t.done()
-        ]
-
-        for task in all_tasks:
-            if not task.done():
-                task.cancel()
-
-        # Wait for all tasks to finish with shorter timeout
-        if all_tasks:
-            try:
-                done, pending = await asyncio.wait(
-                    all_tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED
-                )
-
-                if pending:
-                    logger.warning(f"{len(pending)} tasks did not finish within timeout, force cancelling")
-                    for task in pending:
-                        logger.warning(f"   - {task.get_name()} still pending")
-                        # Force cancel again
-                        task.cancel()
-                    
-                    # Give one more brief chance to finish
-                    try:
-                        await asyncio.wait(pending, timeout=0.5)
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.error(f"Error during task cleanup: {e}")
-
-        # Clean up stop events
+            sender_task.cancel()
+        
+        # Release MCP servers
         try:
-            for session_id in list(stop_events.keys()):
-                del stop_events[session_id]
-        except Exception:
-            pass
-
-        logger.info("🧹 All tasks cleaned up")
+            pool = await get_mcp_pool()
+            await pool.release_servers_for_user(user_id)
+        except Exception as e:
+            logger.error(f"Failed to release MCP servers: {e}")
+        
+        logger.info(f"Session cleanup complete: {session_id}")
 
 
 @app.websocket("/ws/secure/chat")
 async def websocket_secure_chat(websocket: WebSocket):
     """
-    Zero-Trust Secure WebSocket for AI Agent.
+    Zero-Trust Secure WebSocket for AI Agent using HybridAgent.
 
     Every message is cryptographically signed by the device and verified.
     This prevents session hijacking and replay attacks.
@@ -1931,33 +801,29 @@ async def websocket_secure_chat(websocket: WebSocket):
     client_ip = websocket.client.host if websocket.client else None
     verifier = get_verifier()
 
-    # Extract org_id and project_id from query params for audit logging
+    # Extract org_id and project_id from query params
     ws_org_id = websocket.query_params.get("org_id") or None
     ws_project_id = websocket.query_params.get("project_id") or None
-    logger.info(f"Secure WebSocket query params - org_id: {ws_org_id}, project_id: {ws_project_id}")
+    logger.info(f"Secure WebSocket params - org_id: {ws_org_id}, project_id: {ws_project_id}")
+    
     session = None
     session_id = None
-
-    # Create queues for message routing
-    agent_queue = asyncio.Queue(maxsize=100)
-    interrupt_queue = asyncio.Queue(maxsize=10)
-    permission_response_queue = asyncio.Queue(maxsize=20)
-    output_queue = asyncio.Queue(maxsize=100)
-    stop_events: Dict[str, asyncio.Event] = {}
-
-    # Task references
-    heartbeat = None
-    router_task = None
-    sender = None
-    interrupt = None
+    user_id = None
+    
+    # Agent and task references
     agent = None
+    mcp_manager = None
+    stream_task = None
+    sender_task = None
+    heartbeat_task_ref = None
+    output_queue = asyncio.Queue()
 
     try:
         # Wait for authentication message
         logger.info("Waiting for Zero-Trust authentication...")
         auth_data = await asyncio.wait_for(
             websocket.receive_json(),
-            timeout=30.0  # 30 second auth timeout
+            timeout=30.0
         )
 
         if auth_data.get("type") != "authenticate":
@@ -1997,7 +863,6 @@ async def websocket_secure_chat(websocket: WebSocket):
 
         if not session:
             logger.warning(f"🚫 Zero-Trust authentication failed: {error}")
-            # Determine error type for audit
             error_code = "AUTH_FAILED"
             if "expired" in error.lower():
                 error_code = "CERTIFICATE_EXPIRED"
@@ -2018,11 +883,12 @@ async def websocket_secure_chat(websocket: WebSocket):
             return
 
         session_id = session.session_id
-        logger.info(f"  Zero-Trust authenticated: user={session.user_id}, session={session_id}")
+        user_id = session.user_id
+        logger.info(f"Zero-Trust authenticated: user={user_id}, session={session_id}")
 
-        # Log successful authentication with org_id/project_id from URL
+        # Log successful authentication
         await audit.log_session_authenticated(
-            user_id=session.user_id,
+            user_id=user_id,
             session_id=session_id,
             device_cert_id=cert_dict.get("id", ""),
             instance_id=cert_dict.get("instance_id", ""),
@@ -2032,175 +898,231 @@ async def websocket_secure_chat(websocket: WebSocket):
             metadata={"permissions": session.permissions}
         )
 
-        # Build audit hooks config for tool execution logging (with org_id/project_id)
-        hooks_config = build_hooks_config(
-            user_id=session.user_id,
-            session_id=session_id,
-            org_id=ws_org_id,
-            project_id=ws_project_id
+        # Initialize MCP tool manager
+        mcp_tools = []
+        try:
+            logger.info(f"Loading MCP servers for user: {user_id}")
+            user_mcp_config = await get_user_mcp_servers(auth_token="", user_id=user_id)
+            
+            if user_mcp_config:
+                logger.info(f"Found {len(user_mcp_config)} MCP server configs")
+                pool = await get_mcp_pool()
+                mcp_manager = await pool.get_servers_for_user(user_id, user_mcp_config)
+                mcp_tools = mcp_manager.get_all_tools()
+                logger.info(f"Loaded {len(mcp_tools)} MCP tools")
+            else:
+                mcp_manager = MCPToolManager()
+        except Exception as e:
+            logger.error(f"Failed to load MCP servers: {e}")
+            mcp_manager = MCPToolManager()
+
+        # Combine tools
+        all_tools = INCIDENT_TOOLS.copy()
+        all_tools.extend(mcp_tools)
+
+        # Create HybridAgent
+        config = HybridAgentConfig(
+            model="claude-sonnet-4-20250514",
+            streaming_model="claude-sonnet-4-20250514",
+            planning_model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            max_planning_tokens=1024,
+            tools=all_tools,
+            system_prompt="""You are an AI assistant specialized in incident response and DevOps.
+You help users manage incidents, analyze alerts, and troubleshoot issues.
+Be concise but thorough in your responses."""
+        )
+        agent = HybridAgent(config=config)
+
+        # Create tool executor
+        tool_context = ToolContext(org_id=ws_org_id, project_id=ws_project_id)
+        tool_executor = create_tool_executor(
+            auth_token="",  # Zero-Trust uses device cert
+            context=tool_context,
+            mcp_manager=mcp_manager,
+            user_id=user_id,
+            session_id=session_id
         )
 
-        # Send auth success
+        # Send auth success with session info
         await websocket.send_json({
             "type": "authenticated",
             "session_id": session_id,
-            "user_id": session.user_id,
-            "permissions": session.permissions
+            "conversation_id": session_id,
+            "user_id": user_id,
+            "permissions": session.permissions,
+            "agent_type": "hybrid",
+            "mcp_servers": mcp_manager.server_count if mcp_manager else 0,
+            "total_tools": len(all_tools)
         })
 
-        # Define secure message router (verifies each message)
-        async def secure_message_router():
-            """Route incoming signed messages to appropriate queues after verification."""
+        # Track session state
+        is_first_message = True
+        conversation_id = session_id
+
+        async def send_events():
+            """Send events from queue to WebSocket."""
             try:
                 while True:
-                    signed_message = await websocket.receive_json()
+                    event = await output_queue.get()
+                    if event is None:
+                        break
+                    await websocket.send_json(event)
+            except WebSocketDisconnect:
+                pass
+            except Exception as e:
+                logger.error(f"Send error: {e}")
 
-                    # Handle pong (not signed)
-                    if signed_message.get("type") == "pong":
-                        continue
+        async def heartbeat():
+            """Send periodic pings."""
+            try:
+                while True:
+                    await asyncio.sleep(30)
+                    await output_queue.put({"type": "ping", "timestamp": time.time()})
+            except asyncio.CancelledError:
+                pass
 
-                    # Verify signature on every message
-                    is_valid, error_msg, data = verifier.verify_message(
-                        signed_message, session_id
+        sender_task = asyncio.create_task(send_events())
+        heartbeat_task_ref = asyncio.create_task(heartbeat())
+
+        while True:
+            try:
+                signed_message = await websocket.receive_json()
+
+                # Handle pong (not signed)
+                if signed_message.get("type") == "pong":
+                    continue
+
+                # Verify signature on every message
+                is_valid, error_msg, data = verifier.verify_message(
+                    signed_message, session_id
+                )
+
+                if not is_valid:
+                    logger.warning(f"🚫 Message verification failed: {error_msg}")
+                    error_type = EventType.SIGNATURE_INVALID
+                    if "nonce" in error_msg.lower() or "replay" in error_msg.lower():
+                        error_type = EventType.NONCE_REPLAY
+                    await audit.log_security_event(
+                        event_type=error_type,
+                        user_id=user_id,
+                        action="verify_message",
+                        error_code="VERIFICATION_FAILED",
+                        error_message=error_msg,
+                        source_ip=client_ip,
+                        session_id=session_id
                     )
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": f"Message verification failed: {error_msg}"
+                    })
+                    continue
 
-                    if not is_valid:
-                        logger.warning(f"🚫 Message verification failed: {error_msg}")
-                        # Audit log: signature invalid
-                        error_type = EventType.SIGNATURE_INVALID
-                        if "nonce" in error_msg.lower() or "replay" in error_msg.lower():
-                            error_type = EventType.NONCE_REPLAY
-                        await audit.log_security_event(
-                            event_type=error_type,
-                            user_id=session.user_id,
-                            action="verify_message",
-                            error_code="VERIFICATION_FAILED",
-                            error_message=error_msg,
-                            source_ip=client_ip,
-                            session_id=session_id
-                        )
-                        await output_queue.put({
+                msg_type = signed_message.get("payload", {}).get("type", "")
+
+                # Handle interrupt
+                if msg_type == "interrupt":
+                    logger.info("Interrupt requested")
+                    agent.interrupt()
+                    if stream_task and not stream_task.done():
+                        stream_task.cancel()
+                        try:
+                            await stream_task
+                        except asyncio.CancelledError:
+                            pass
+                    await websocket.send_json({"type": "interrupted"})
+                    continue
+
+                # Handle clear history
+                if msg_type == "clear_history":
+                    agent.clear_history()
+                    await websocket.send_json({
+                        "type": "history_cleared",
+                        "message": "Conversation history cleared"
+                    })
+                    continue
+
+                # Handle chat message
+                if msg_type == "chat_message":
+                    prompt = data.get("prompt", "")
+                    if not prompt:
+                        await websocket.send_json({
                             "type": "error",
-                            "error": f"Message verification failed: {error_msg}"
+                            "error": "Empty prompt"
                         })
                         continue
 
-                    # Message is verified, route based on type
-                    msg_type = signed_message.get("payload", {}).get("type", "")
+                    # Update context if provided
+                    msg_org_id = data.get("org_id")
+                    msg_project_id = data.get("project_id")
+                    if msg_org_id or msg_project_id:
+                        tool_context.update(org_id=msg_org_id, project_id=msg_project_id)
 
-                    if msg_type == "interrupt":
-                        await interrupt_queue.put(data)
-                    elif msg_type == "permission_response" or data.get("allow") is not None:
-                        await permission_response_queue.put(data)
-                    elif msg_type == "chat_message":
-                        # Add session context to message
-                        # NOTE: session_id here is for stop events tracking (Zero-Trust session)
-                        # conversation_id (if provided by client) is for Claude conversation resume
-                        data["session_id"] = session_id  # Zero-Trust session for stop events
-                        data["user_id"] = session.user_id
-                        # Preserve conversation_id from client for Claude resume
-                        # Client can send: {"prompt": "...", "conversation_id": "abc-123"}
-                        # If not provided, will start new conversation
-                        await agent_queue.put(data)
-                    else:
-                        logger.warning(f"Unknown message type: {msg_type}")
+                    if data.get("conversation_id"):
+                        conversation_id = data.get("conversation_id")
+
+                    logger.info(f"Processing: {prompt[:50]}...")
+
+                    # Audit
+                    await audit.log_chat_message(
+                        user_id=user_id,
+                        session_id=session_id,
+                        conversation_id=conversation_id,
+                        message_preview=prompt[:100],
+                        org_id=tool_context.org_id,
+                        project_id=tool_context.project_id
+                    )
+
+                    # Save conversation on first message
+                    if is_first_message:
+                        await save_conversation(
+                            user_id=user_id,
+                            conversation_id=conversation_id,
+                            first_message=prompt,
+                            model="claude-sonnet-4-hybrid",
+                            metadata={
+                                "org_id": tool_context.org_id,
+                                "project_id": tool_context.project_id,
+                                "mode": "hybrid-secure"
+                            }
+                        )
+                        is_first_message = False
+
+                    await save_message(
+                        conversation_id=conversation_id,
+                        role="user",
+                        content=prompt
+                    )
+
+                    # Cancel existing stream
+                    if stream_task and not stream_task.done():
+                        stream_task.cancel()
+                        try:
+                            await stream_task
+                        except asyncio.CancelledError:
+                            pass
+
+                    # Process with hybrid agent
+                    async def process_and_save():
+                        response = await agent.process_message(
+                            prompt=prompt,
+                            output_queue=output_queue,
+                            tool_executor=tool_executor
+                        )
+                        if response:
+                            await save_message(
+                                conversation_id=conversation_id,
+                                role="assistant",
+                                content=response
+                            )
+                            await update_conversation_activity(conversation_id)
+                        return response
+
+                    stream_task = asyncio.create_task(process_and_save())
 
             except WebSocketDisconnect:
-                logger.info("🔌 Secure message router: WebSocket disconnected")
-            except Exception as e:
-                logger.error(f"Secure message router error: {e}", exc_info=True)
-            finally:
-                await agent_queue.put(None)
-                await interrupt_queue.put(None)
-                await permission_response_queue.put(None)
-
-        # Define permission callback for secure chat
-        async def secure_permission_callback(
-            tool_name: str, input_data: dict, context: ToolPermissionContext
-        ) -> PermissionResultAllow | PermissionResultDeny:
-            """Permission callback that uses queues for secure communication."""
-            request_id = str(uuid.uuid4())
-
-            # Audit log: tool requested
-            await audit.log_tool_requested(
-                user_id=session.user_id,
-                session_id=session_id,
-                tool_name=tool_name,
-                tool_input=input_data,
-                request_id=request_id
-            )
-
-            await output_queue.put({
-                "type": "permission_request",
-                "request_id": request_id,
-                "tool_name": tool_name,
-                "input_data": input_data,
-                "suggestions": context.suggestions,
-            })
-
-            while True:
-                response = await permission_response_queue.get()
-                if response is None:
-                    return PermissionResultDeny(message="Connection closed")
-
-                if response.get("request_id") != request_id:
-                    await permission_response_queue.put(response)
-                    await asyncio.sleep(0.01)
-                    continue
-
-                if response.get("allow") in ("y", "yes", True):
-                    # Audit log: tool approved
-                    await audit.log_tool_approved(
-                        user_id=session.user_id,
-                        session_id=session_id,
-                        tool_name=tool_name,
-                        request_id=request_id
-                    )
-                    return PermissionResultAllow()
-                else:
-                    # Audit log: tool denied
-                    await audit.log_tool_denied(
-                        user_id=session.user_id,
-                        session_id=session_id,
-                        tool_name=tool_name,
-                        request_id=request_id
-                    )
-                    return PermissionResultDeny(message="User denied permission")
-
-        # Start tasks
-        heartbeat = asyncio.create_task(
-            heartbeat_task(websocket, output_queue=output_queue, interval=30), name="secure_heartbeat"
-        )
-
-        router_task = asyncio.create_task(
-            secure_message_router(), name="secure_router"
-        )
-
-        sender = asyncio.create_task(
-            websocket_sender(websocket, output_queue), name="secure_sender"
-        )
-
-        interrupt = asyncio.create_task(
-            interrupt_task(interrupt_queue, stop_events, output_queue), name="secure_interrupt"
-        )
-
-        # Use streaming mode for continuous message handling
-        agent = asyncio.create_task(
-            agent_task_streaming(
-                agent_queue,
-                stop_events,
-                output_queue,
-                secure_permission_callback,
-                websocket,
-                hooks_config,  # Audit hooks for tool execution logging
-                initial_user_id=session.user_id,
-                initial_auth_token=None,  # Zero-Trust uses device cert, not JWT
-            ),
-            name="secure_agent",
-        )
-
-        tasks = [heartbeat, router_task, sender, interrupt, agent]
-        await asyncio.gather(*tasks, return_exceptions=True)
+                logger.info(f"Secure WebSocket disconnected: {session_id}")
+                break
 
     except asyncio.TimeoutError:
         logger.warning("⏰ Zero-Trust authentication timeout")
@@ -2223,29 +1145,25 @@ async def websocket_secure_chat(websocket: WebSocket):
         except:
             pass
     finally:
-        # NOTE: Don't revoke session on disconnect to allow reconnection with same session
-        # Session will expire naturally based on certificate expiry time
-        # This allows:
-        # 1. Reconnection with same session_id
-        # 2. Nonce state preserved (replay attack prevention)
-        # 3. Potential Claude conversation resume (if re-enabled)
-        # 
-        # For explicit logout, mobile should call a separate revoke endpoint
         if session_id:
             logger.info(f"Session {session_id} kept for potential reconnection")
 
-        # Cleanup tasks
-        try:
+        # Cleanup
+        if stream_task and not stream_task.done():
+            stream_task.cancel()
+        if heartbeat_task_ref and not heartbeat_task_ref.done():
+            heartbeat_task_ref.cancel()
+        if sender_task and not sender_task.done():
             await output_queue.put(None)
-        except:
-            pass
+            sender_task.cancel()
 
-        all_tasks = [t for t in [heartbeat, router_task, sender, interrupt, agent] if t and not t.done()]
-        for task in all_tasks:
-            task.cancel()
-
-        if all_tasks:
-            await asyncio.wait(all_tasks, timeout=2.0)
+        # Release MCP servers
+        if user_id:
+            try:
+                pool = await get_mcp_pool()
+                await pool.release_servers_for_user(user_id)
+            except Exception as e:
+                logger.error(f"Failed to release MCP servers: {e}")
 
         logger.info("🧹 Secure WebSocket cleanup complete")
 
