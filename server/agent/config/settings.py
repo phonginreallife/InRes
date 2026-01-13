@@ -89,7 +89,19 @@ class Config:
 
     def _find_config_file(self) -> Optional[Path]:
         """Find config file in search paths"""
+        # First, check inres_CONFIG_PATH environment variable (used in Docker)
+        env_config_path = os.getenv("inres_CONFIG_PATH")
+        if env_config_path:
+            config_path = Path(env_config_path)
+            if config_path.exists():
+                logger.info(f"  Found config file from inres_CONFIG_PATH: {config_path}")
+                return config_path
+            else:
+                logger.warning(f"  inres_CONFIG_PATH set but file not found: {config_path}")
+
+        # Fallback search paths
         search_paths = [
+            Path("/app/config.yaml"),  # Docker mount point
             Path(__file__).parent.parent / "config" / "dev.config.yaml",  # api/config/dev.config.yaml
             Path(__file__).parent.parent / "cmd" / "server" / "dev.config.yaml",  # Legacy
             Path("/etc/inres/config.yaml"),  # System-wide
