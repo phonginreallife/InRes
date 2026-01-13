@@ -132,21 +132,19 @@ def sanitize_error_message(error: Exception, context: str = "") -> str:
 
 
 # ==========================================
-# Rate Limiting
+# Rate Limiting (Redis-backed for horizontal scaling)
 # ==========================================
 
-# Rate limiter storage: {user_id: [(timestamp, count), ...]}
-rate_limit_storage = defaultdict(list)
-rate_limit_lock = Lock()
+from utils.redis_client import get_rate_limiter, get_session_store, close_redis
 
-# Get rate limit from environment (default: 60 requests per minute)
+# Get rate limit config from environment
 RATE_LIMIT_REQUESTS = int(os.getenv("AI_RATE_LIMIT", "60"))
 RATE_LIMIT_WINDOW = 60  # seconds
 
 
 async def check_rate_limit(user_id: str) -> bool:
     """
-    Check if user has exceeded rate limit.
+    Check if user has exceeded rate limit using Redis.
 
     Args:
         user_id: User identifier
@@ -154,33 +152,15 @@ async def check_rate_limit(user_id: str) -> bool:
     Returns:
         True if within rate limit, False if exceeded
     """
-    async with rate_limit_lock:
-        now = datetime.now()
-        window_start = now - timedelta(seconds=RATE_LIMIT_WINDOW)
-
-        # Clean up old entries
-        rate_limit_storage[user_id] = [
-            timestamp for timestamp in rate_limit_storage[user_id]
-            if timestamp > window_start
-        ]
-
-        # Check if exceeded
-        if len(rate_limit_storage[user_id]) >= RATE_LIMIT_REQUESTS:
-            logger.warning(
-                f"⚠️ Rate limit exceeded for user {user_id}: "
-                f"{len(rate_limit_storage[user_id])} requests in {RATE_LIMIT_WINDOW}s"
-            )
-            return False
-
-        # Add current request
-        rate_limit_storage[user_id].append(now)
-        return True
+    rate_limiter = get_rate_limiter()
+    return await rate_limiter.is_allowed(user_id)
 
 
 async def rate_limit_middleware(request: Request, call_next):
     """
     Rate limiting middleware for all API endpoints.
 
+    Uses Redis-backed rate limiting for horizontal scaling.
     Limits requests per user based on AI_RATE_LIMIT environment variable.
     """
     # Skip rate limiting for health check
@@ -196,7 +176,7 @@ async def rate_limit_middleware(request: Request, call_next):
     if auth_token:
         user_id = extract_user_id_from_token(auth_token)
         if user_id:
-            # Check rate limit
+            # Check rate limit using Redis
             if not await check_rate_limit(user_id):
                 # Log rate limit event
                 audit = get_audit_service()
@@ -256,6 +236,10 @@ async def lifespan(app: FastAPI):
     # Stop PGMQ consumer
     await stop_pgmq_consumer()
     logger.info("🤖 Incident analytics PGMQ consumer stopped")
+
+    # Close Redis connection
+    await close_redis()
+    logger.info("🔴 Redis connection closed")
 
     # Shutdown audit service (flush remaining events)
     await shutdown_audit_service()

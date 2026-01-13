@@ -2,14 +2,28 @@
 # Image version - set INRES_VERSION in .env or defaults to 0.1.0
 
 services:
+  redis:
+    container_name: inres-redis
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - inres-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   agent:
-    container_name: inres-agent
     platform: linux/amd64
     image: ghcr.io/phonginreallife/inres-agent:${INRES_VERSION:-0.1.0}
     expose:
       - "8002"
-    ports:
-      - "8002:8002"
     volumes:
       - claude_data:/root/.claude
       - ./volumes/config/dev.config.yaml:/app/config.yaml
@@ -19,10 +33,16 @@ services:
       - SUPABASE_URL=${SUPABASE_URL:-http://supabase_kong_inres-oss:8000}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@supabase_db_inres-oss:5432/postgres?sslmode=disable}
+      - REDIS_URL=redis://redis:6379
     restart: unless-stopped
     networks:
       - inres-network
       - supabase_network_supabase
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      replicas: ${AGENT_REPLICAS:-1}
 
   api:
     container_name: inres-api

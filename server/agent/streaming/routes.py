@@ -40,11 +40,15 @@ from .mcp_client import MCPToolManager, get_mcp_pool
 from audit_service import get_audit_service, EventType
 from routes_conversations import save_conversation, save_message, update_conversation_activity
 
+# Redis session store for horizontal scaling
+from utils.redis_client import get_session_store
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Store active streaming sessions with their MCP managers
+# Local active sessions (WebSocket connections are per-instance)
+# Redis stores metadata for tracking across instances
 active_sessions: Dict[str, Dict[str, Any]] = {}
 
 
@@ -178,7 +182,7 @@ You help users manage incidents, analyze alerts, and troubleshoot issues.
 Be concise but thorough in your responses."""
     )
     
-    # Store session info (including conversation tracking state)
+    # Store session info locally (WebSocket is per-instance)
     active_sessions[session_id] = {
         "agent": agent,
         "mcp_manager": mcp_manager,
@@ -186,6 +190,19 @@ Be concise but thorough in your responses."""
         "is_first_message": True,  # Track if first message for conversation creation
         "conversation_id": session_id  # Use session_id as conversation_id
     }
+    
+    # Register session in Redis for cross-instance tracking
+    session_store = get_session_store()
+    await session_store.register(
+        session_id=session_id,
+        user_id=user_id,
+        metadata={
+            "org_id": org_id,
+            "project_id": project_id,
+            "mcp_servers": mcp_manager.server_count if mcp_manager else 0,
+            "client_ip": client_ip
+        }
+    )
     
     # Create mutable tool context (can be updated per message)
     tool_context = ToolContext(org_id=org_id, project_id=project_id)
@@ -388,25 +405,40 @@ Be concise but thorough in your responses."""
         elif mcp_manager:
             await mcp_manager.shutdown()
         
-        # Remove session
+        # Remove session from local storage
         if session_id in active_sessions:
             del active_sessions[session_id]
+        
+        # Unregister from Redis
+        try:
+            session_store = get_session_store()
+            await session_store.unregister(session_id)
+        except Exception as e:
+            logger.error(f"Failed to unregister session from Redis: {e}")
         
         logger.info(f"Session cleanup complete: {session_id}")
 
 
 @router.get("/streaming/status")
 async def streaming_status():
-    """Get status of streaming service including pool statistics."""
+    """Get status of streaming service including pool and Redis statistics."""
     try:
         pool = await get_mcp_pool()
         pool_stats = pool.stats
     except Exception:
         pool_stats = {"error": "Pool not initialized"}
     
+    # Get Redis session stats for cross-instance view
+    try:
+        session_store = get_session_store()
+        redis_stats = await session_store.get_stats()
+    except Exception as e:
+        redis_stats = {"error": str(e)}
+    
     return {
         "status": "ok",
-        "active_sessions": len(active_sessions),
+        "local_sessions": len(active_sessions),
         "builtin_tools": len(INCIDENT_TOOLS),
-        "pool": pool_stats
+        "pool": pool_stats,
+        "redis": redis_stats
     }
