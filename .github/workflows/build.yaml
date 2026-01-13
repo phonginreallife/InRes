@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'api/**'
+      - 'agent/**'
       - 'frontend/**'
     tags:
       - 'v*'
@@ -12,6 +13,7 @@ on:
     branches: [main]
     paths:
       - 'api/**'
+      - 'agent/**'
       - 'frontend/**'
   workflow_dispatch:
 
@@ -90,16 +92,16 @@ jobs:
             dockerfile: api/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-api
           - name: agent
-            context: api/ai
-            dockerfile: api/ai/Dockerfile
+            context: agent
+            dockerfile: agent/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-agent
           - name: frontend
             context: frontend/inres
             dockerfile: frontend/inres/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-frontend
           - name: slack-worker
-            context: api/workers
-            dockerfile: api/workers/Dockerfile
+            context: api/slack-worker
+            dockerfile: api/slack-worker/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-slack-worker
           # Note: worker/ is a Cloudflare Worker, deployed via wrangler, not Docker
 
