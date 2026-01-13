@@ -20,15 +20,10 @@ Usage:
     
     agent = HybridAgent(config=HybridAgentConfig(...))
     response = await agent.process_message(prompt, output_queue, tool_executor)
-
-WebSocket Endpoints:
-    /hybrid/ws/stream - Hybrid agent with SDK orchestration + token streaming
-    /hybrid/status - Service status
 """
 
 from .agent import HybridAgent, HybridAgentConfig
 from .orchestrator import AgentOrchestrator, OrchestratorAction, ActionType
-from .routes import router as hybrid_router
 
 __all__ = [
     # Agent
@@ -38,6 +33,4 @@ __all__ = [
     "AgentOrchestrator",
     "OrchestratorAction",
     "ActionType",
-    # Routes
-    "hybrid_router",
 ]
