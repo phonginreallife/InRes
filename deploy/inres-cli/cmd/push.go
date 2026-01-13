@@ -220,8 +220,8 @@ var serviceDockerfiles = map[string]struct {
 		dockerfile: "../../api/agent/Dockerfile",
 	},
 	"slack-worker": {
-		context:    "../../api/workers",
-		dockerfile: "../../api/workers/Dockerfile",
+		context:    "../../api/slack-worker",
+		dockerfile: "../../api/slack-worker/Dockerfile",
 	},
 }
 

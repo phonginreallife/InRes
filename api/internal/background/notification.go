@@ -1,4 +1,4 @@
-package workers
+package background
 
 import (
 	"database/sql"

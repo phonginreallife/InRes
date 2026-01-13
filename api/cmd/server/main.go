@@ -12,10 +12,10 @@ import (
 	"github.com/go-redis/redis/v8"
 	_ "github.com/lib/pq"
 
+	"github.com/phonginreallife/inres/internal/background"
 	"github.com/phonginreallife/inres/internal/config"
 	"github.com/phonginreallife/inres/router"
 	"github.com/phonginreallife/inres/services"
-	"github.com/phonginreallife/inres/workers"
 )
 
 func main() {
@@ -98,7 +98,7 @@ func main() {
 	incidentService := services.NewIncidentService(db, redisClient, fcmService)
 
 	// Initialize workers
-	notificationWorker := workers.NewNotificationWorker(db, fcmService)
+	notificationWorker := background.NewNotificationWorker(db, fcmService)
 	incidentService.SetNotificationWorker(notificationWorker)
 
 	// Initialize realtime broadcast service for live notifications
@@ -106,7 +106,7 @@ func main() {
 	incidentService.SetBroadcastService(broadcastService)
 	log.Println("  Realtime broadcast service initialized")
 
-	incidentWorker := workers.NewIncidentWorker(db, incidentService, notificationWorker)
+	incidentWorker := background.NewIncidentWorker(db, incidentService, notificationWorker)
 
 	// Start workers in background goroutines
 	var wg sync.WaitGroup

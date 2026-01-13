@@ -9,9 +9,9 @@ import (
 	"syscall"
 
 	_ "github.com/lib/pq"
+	"github.com/phonginreallife/inres/internal/background"
 	"github.com/phonginreallife/inres/internal/config"
 	"github.com/phonginreallife/inres/services"
-	"github.com/phonginreallife/inres/workers"
 )
 
 func main() {
@@ -55,12 +55,12 @@ func main() {
 
 	// Initialize workers
 	// Note: NotificationWorker no longer handles Slack (delegated to Python SlackWorker)
-	notificationWorker := workers.NewNotificationWorker(pg, fcmService)
+	notificationWorker := background.NewNotificationWorker(pg, fcmService)
 
 	// Set notification worker in incident service for sending notifications
 	incidentService.SetNotificationWorker(notificationWorker)
 
-	incidentWorker := workers.NewIncidentWorker(pg, incidentService, notificationWorker)
+	incidentWorker := background.NewIncidentWorker(pg, incidentService, notificationWorker)
 	// uptimeWorker := workers.NewUptimeWorker(pg, incidentService) // Disabled for now
 
 	// Start workers in separate goroutines
