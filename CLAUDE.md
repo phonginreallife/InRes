@@ -142,7 +142,7 @@ inres is a multi-service on-call management platform with AI-powered incident re
 
 ### 4. Workers
 - **Go Worker** (`api/cmd/worker/main.go`): Escalation processing (PGMQ consumer)
-- **Slack Worker** (`api/workers/slack_worker.py`): Slack notification queue consumer (Python)
+- **Slack Worker** (`api/slack-worker/slack_worker.py`): Slack notification queue consumer (Python)
 
 ## Key Architecture Patterns
 

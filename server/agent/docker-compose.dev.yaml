@@ -1,0 +1,118 @@
+# =============================================================================
+# Docker Compose for Agent Development
+# =============================================================================
+# 
+# This file sets up a minimal development environment for the InRes Agent
+# with hot-reloading, Redis, and mock services.
+#
+# Usage:
+#   # Start all services
+#   docker compose -f docker-compose.dev.yaml up
+#
+#   # Start with rebuild
+#   docker compose -f docker-compose.dev.yaml up --build
+#
+#   # Start in background
+#   docker compose -f docker-compose.dev.yaml up -d
+#
+#   # View logs
+#   docker compose -f docker-compose.dev.yaml logs -f agent
+#
+#   # Stop all services
+#   docker compose -f docker-compose.dev.yaml down
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Redis - Session store and rate limiting
+  # ---------------------------------------------------------------------------
+  redis:
+    container_name: inres-agent-redis-dev
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"  # Exposed for debugging
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - agent-dev-network
+
+  # ---------------------------------------------------------------------------
+  # Agent Service - With hot reloading
+  # ---------------------------------------------------------------------------
+  agent:
+    container_name: inres-agent-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8002:8002"
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app:cached
+      # Persist Claude SDK data
+      - claude_dev_data:/root/.claude
+      # Mount config
+      - ./config.dev.yaml:/app/config.yaml:ro
+    environment:
+      # API Keys
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      
+      # Service URLs
+      - INRES_API_URL=${INRES_API_URL:-http://host.docker.internal:8080}
+      - SUPABASE_URL=${SUPABASE_URL:-http://host.docker.internal:54321}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      
+      # Development settings
+      - DEV_MODE=true
+      - LOG_LEVEL=debug
+      - PYTHONUNBUFFERED=1
+      
+      # CORS - allow all in dev
+      - AI_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000
+      
+      # Rate limiting - higher for dev
+      - AI_RATE_LIMIT=1000
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - agent-dev-network
+    # Add host.docker.internal for accessing host services
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # Redis Commander - Web UI for Redis debugging
+  # ---------------------------------------------------------------------------
+  redis-ui:
+    container_name: inres-redis-ui-dev
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - agent-dev-network
+    profiles:
+      - debug  # Only start with: docker compose --profile debug up
+
+networks:
+  agent-dev-network:
+    driver: bridge
+
+volumes:
+  redis_dev_data:
+  claude_dev_data:

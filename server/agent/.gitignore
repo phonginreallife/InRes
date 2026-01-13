@@ -1,0 +1,6 @@
+__pycache__
+workspaces/*
+.env
+.config.*
+# Development files
+.dev/

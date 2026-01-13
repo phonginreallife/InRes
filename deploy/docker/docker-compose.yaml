@@ -1,28 +1,76 @@
 # version: "3.9"
 # Image version - set INRES_VERSION in .env or defaults to 0.1.0
+#
+# SDK Hybrid Agent Architecture:
+#   - Claude Agent SDK for planning, tools, MCP integration
+#   - Direct Anthropic API for token-level streaming
+#
+# Required environment variables (.env):
+#   ANTHROPIC_API_KEY=sk-ant-...
+#   SUPABASE_SERVICE_ROLE_KEY=...
 
 services:
+  redis:
+    container_name: inres-redis
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - inres-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   agent:
-    container_name: inres-agent
     platform: linux/amd64
     image: ghcr.io/phonginreallife/inres-agent:${INRES_VERSION:-0.1.0}
     expose:
       - "8002"
-    ports:
-      - "8002:8002"
     volumes:
       - claude_data:/root/.claude
       - ./volumes/config/dev.config.yaml:/app/config.yaml
     environment:
+      # Config
       - inres_CONFIG_PATH=/app/config.yaml
+      # API Keys (required)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # Service URLs
+      - INRES_API_URL=${INRES_API_URL:-http://api:8080}
       - SUPABASE_URL=${SUPABASE_URL:-http://supabase_kong_inres-oss:8000}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@supabase_db_inres-oss:5432/postgres?sslmode=disable}
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      # Agent Settings
+      - AGENT_MODE=sdk_hybrid
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - AI_RATE_LIMIT=${AI_RATE_LIMIT:-100}
     restart: unless-stopped
     networks:
       - inres-network
       - supabase_network_supabase
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${AGENT_REPLICAS:-1}
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
 
   api:
     container_name: inres-api
@@ -78,11 +126,10 @@ services:
       KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-      # DNS settings to handle container IP changes
-      KONG_DNS_STALE_TTL: "1"           # Use stale DNS for only 1 second
-      KONG_DNS_NOT_FOUND_TTL: "1"       # Retry not-found quickly
-      KONG_DNS_ERROR_TTL: "1"           # Retry DNS errors quickly
-      KONG_DNS_NO_SYNC: "off"           # Enable sync DNS queries
+      KONG_DNS_STALE_TTL: "1"
+      KONG_DNS_NOT_FOUND_TTL: "1"
+      KONG_DNS_ERROR_TTL: "1"
+      KONG_DNS_NO_SYNC: "off"
     restart: unless-stopped
     networks:
       - inres-network
@@ -100,3 +147,4 @@ networks:
 
 volumes:
   claude_data:
+  redis_data:

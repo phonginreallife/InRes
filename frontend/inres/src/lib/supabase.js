@@ -58,7 +58,7 @@ const getSupabaseClient = async () => {
       return supabaseInstance;
     }
 
-    console.log('✅ Creating Supabase client instance:', {
+    console.log('Creating Supabase client instance:', {
       url: config.supabaseUrl,
       hasAnonKey: !!config.supabaseAnonKey,
       anonKeyLength: config.supabaseAnonKey?.length,
