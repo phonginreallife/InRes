@@ -1,27 +1,8 @@
-# =============================================================================
-# Production HTTPS Configuration
-# =============================================================================
-#
+# Production docker-compose with HTTPS support
 # Usage: docker compose -f docker-compose.yaml -f docker-compose.https.yaml up -d
-#
-# This overlay adds:
-#   - Nginx reverse proxy for SSL termination
-#   - Let's Encrypt certificate management via Certbot
-#   - WebSocket support for Agent streaming
-#
-# Prerequisites:
-#   1. Domain pointing to your server
-#   2. Run certbot to obtain initial certificates:
-#      docker compose run --rm certbot certonly --webroot \
-#        --webroot-path=/var/www/certbot \
-#        -d your-domain.com
-#
-# =============================================================================
 
 services:
-  # ---------------------------------------------------------------------------
-  # Nginx - SSL termination & reverse proxy
-  # ---------------------------------------------------------------------------
+  # Nginx reverse proxy for SSL termination
   nginx:
     container_name: inres-nginx
     image: nginx:alpine
@@ -37,18 +18,11 @@ services:
     restart: unless-stopped
     networks:
       - inres-network
-      - supabase_network_supabase
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - supabase_network_supabase  # Connect to Supabase for /auth, /rest, etc.
     # Reload nginx every 6 hours to pick up certificate renewals
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
 
-  # ---------------------------------------------------------------------------
-  # Certbot - Let's Encrypt certificate management
-  # ---------------------------------------------------------------------------
+  # Certbot for Let's Encrypt certificate management
   certbot:
     container_name: inres-certbot
     image: certbot/certbot
@@ -61,16 +35,16 @@ services:
     networks:
       - inres-network
 
-  # ---------------------------------------------------------------------------
-  # Kong - Override to only expose internally
-  # ---------------------------------------------------------------------------
+  # Override kong to only expose internally (nginx handles external traffic)
   kong:
     ports: !override
-      - "8000"  # Only internal, nginx handles external traffic
+      - "8000"  # Only internal, not exposed to host
 
 # Network declarations
 networks:
+  # InRes internal network (from base docker-compose.yaml)
   inres-network:
     external: false
+  # Supabase network (created by Supabase docker-compose)
   supabase_network_supabase:
     external: true

@@ -28,6 +28,7 @@ services:
       retries: 5
 
   agent:
+    container_name: inres-agent
     platform: linux/amd64
     image: ghcr.io/phonginreallife/inres-agent:${INRES_VERSION:-0.1.0}
     expose:
@@ -42,9 +43,10 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       # Service URLs
       - INRES_API_URL=${INRES_API_URL:-http://api:8080}
-      - SUPABASE_URL=${SUPABASE_URL:-http://supabase_kong_inres-oss:8000}
+      - SUPABASE_URL=${SUPABASE_URL:-http://supabase_kong_supabase:8000}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@supabase_db_inres-oss:5432/postgres?sslmode=disable}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@supabase_db_supabase:5432/postgres?sslmode=disable}
       # Redis
       - REDIS_URL=redis://redis:6379
       # Agent Settings

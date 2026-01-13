@@ -19,7 +19,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Enable token-level streaming for WebSocket AI chat (baked in at build time)
-ENV NEXT_PUBLIC_USE_TOKEN_STREAMING=true
+ENV NEXT_PUBLIC_USE_TOKEN_STREAMING=false
 
 # Build the application
 RUN npm run build
