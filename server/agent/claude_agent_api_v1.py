@@ -17,49 +17,31 @@ import logging
 import os
 import time
 import uuid
-from pathlib import Path
+from contextlib import asynccontextmanager
+from typing import Any, Dict
 
 # Load config from YAML (unifies config with Go API)
 from config import loader as config_loader
 config_loader.load_config()
-
-from asyncio import Lock
-from collections import defaultdict
-from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
-from typing import Any, Dict
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # Import from organized packages
-from tools import create_incident_tools_server, set_auth_token, set_org_id, set_project_id
 from security import get_verifier, init_verifier
 from audit import (
     get_audit_service,
     init_audit_service,
     shutdown_audit_service,
     EventType,
-    EventStatus,
-    build_hooks_config,
 )
 from services import (
     extract_user_id_from_token,
     get_user_mcp_servers,
-    get_user_workspace_path,
-    load_user_plugins,
-    sync_mcp_config_to_local,
-    sync_memory_to_workspace,
-    sync_user_skills,
-    unzip_installed_plugins,
-    get_user_allowed_tools,
-    add_user_allowed_tool,
-    delete_user_allowed_tool,
     start_pgmq_consumer,
     stop_pgmq_consumer,
 )
-from utils import execute_query
 
 # Import routers from routes package
 from routes import (
@@ -75,20 +57,16 @@ from routes import (
     save_message,
     update_conversation_activity,
 )
-from routes.sync import set_mcp_cache
 
 # Import Hybrid Agent (production agent)
 from hybrid import HybridAgent, HybridAgentConfig
-from core.tool_executor import ToolExecutor, ToolContext, create_tool_executor
+from core.tool_executor import ToolContext, create_tool_executor
 from streaming.agent import INCIDENT_TOOLS
 from streaming.mcp_client import MCPToolManager, get_mcp_pool
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Track tool usage for demonstration
-tool_usage_log = []
 
 
 def sanitize_error_message(error: Exception, context: str = "") -> str:
@@ -190,10 +168,6 @@ async def rate_limit_middleware(request: Request, call_next):
                 )
 
     return await call_next(request)
-
-
-# Background worker task reference
-cleanup_worker_task = None
 
 
 @asynccontextmanager
@@ -300,128 +274,8 @@ logger.info("[Memory] Memory routes loaded from routes_memory.py")
 app.include_router(marketplace_router)
 logger.info("[Marketplace] Marketplace routes loaded from routes_marketplace.py")
 
-# Hybrid agent is now the main /ws/chat endpoint (no separate routes needed)
+# Hybrid agent is now the main /ws/chat endpoint
 logger.info("[Hybrid] HybridAgent is the production agent (SDK orchestration + token streaming)")
-
-# In-memory cache for user MCP configs
-# Simple dict cache - cleared on restart
-user_mcp_cache: Dict[str, Dict[str, Any]] = {}
-
-# Share cache with sync routes
-set_mcp_cache(user_mcp_cache)
-
-# Per-user locks for plugin installation (prevents race conditions)
-# Key: user_id, Value: asyncio.Lock
-user_plugin_locks: Dict[str, Lock] = {}
-
-
-# Legacy SDK agent functions removed - now using HybridAgent
-
-
-# API routes moved to separate files (routes_*.py)
-
-async def marketplace_cleanup_worker():
-    """
-    Background worker to poll PGMQ for marketplace cleanup tasks.
-
-    This worker runs continuously in the background and:
-    1. Polls marketplace_cleanup_queue every 5 seconds
-    2. Processes cleanup tasks
-    3. Archives completed tasks
-    4. Retries failed tasks (PGMQ handles this automatically)
-
-    The worker uses PGMQ visibility timeout to prevent duplicate processing.
-    """
-    import psycopg2
-    import psycopg2.extras
-    from routes_marketplace import cleanup_marketplace_task
-
-    logger.info("Marketplace cleanup worker started")
-
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        logger.error("DATABASE_URL not configured, worker cannot start")
-        return
-
-    # Create connection pool for efficiency
-    conn = None
-
-    while True:
-        try:
-            # Reconnect if needed
-            if conn is None or conn.closed:
-                conn = psycopg2.connect(db_url)
-                logger.info("  Connected to PostgreSQL for PGMQ worker")
-
-            # Read message from PGMQ
-            # pgmq.read(queue_name => TEXT, vt => INTEGER, qty => INTEGER)
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    """
-                    SELECT * FROM pgmq.read(
-                        queue_name => %s,
-                        vt => %s,
-                        qty => %s
-                    )
-                    """,
-                    ("marketplace_cleanup_queue", 300, 1),  # 5 min visibility timeout
-                )
-                messages = cur.fetchall()
-
-            if not messages or len(messages) == 0:
-                # No messages, sleep and retry
-                await asyncio.sleep(5)
-                continue
-
-            # Process first message
-            message = messages[0]
-            msg_id = message["msg_id"]
-            message_body = message["message"]  # Already parsed as dict by RealDictCursor
-
-            logger.info(
-                f"📬 Received cleanup task (msg_id: {msg_id}): {message_body}"
-            )
-
-            # Parse message
-            user_id = message_body.get("user_id")
-            marketplace_name = message_body.get("marketplace_name")
-            marketplace_id = message_body.get("marketplace_id")
-            zip_path = message_body.get("zip_path")
-
-            # Execute cleanup
-            cleanup_result = await cleanup_marketplace_task(
-                user_id, marketplace_name, marketplace_id, zip_path
-            )
-
-            if cleanup_result["success"]:
-                # Archive (delete) message from queue
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT pgmq.archive(queue_name => %s, msg_id => %s)",
-                        ("marketplace_cleanup_queue", msg_id),
-                    )
-                    conn.commit()
-
-                logger.info(
-                    f"  Cleanup task completed and archived (msg_id: {msg_id})"
-                )
-            else:
-                # Let message become visible again for retry
-                # PGMQ will automatically retry based on visibility timeout
-                logger.warning(
-                    f"⚠️  Cleanup task failed, will retry (msg_id: {msg_id})"
-                )
-
-        except Exception as e:
-            logger.error(f"Worker error: {e}", exc_info=True)
-            # Close connection on error to force reconnect
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
-                conn = None
-            await asyncio.sleep(10)  # Back off on error
 
 
 async def verify_websocket_auth(websocket: WebSocket) -> tuple[bool, str]:

@@ -13,7 +13,7 @@
 #
 # =============================================================================
 
-.PHONY: help dev dev-docker dev-debug test test-hybrid test-ws logs clean lint
+.PHONY: help dev dev-docker dev-debug test test-agent test-ws logs clean lint
 
 # Default target
 help:
@@ -27,8 +27,8 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test          Run pytest"
-	@echo "  make test-hybrid   Test hybrid agent directly"
-	@echo "  make test-ws       Test WebSocket endpoints"
+	@echo "  make test-agent    Test HybridAgent directly"
+	@echo "  make test-ws       Test WebSocket /ws/chat"
 	@echo ""
 	@echo "Docker:"
 	@echo "  make build         Build Docker image"
@@ -74,24 +74,20 @@ dev-bg:
 test:
 	pytest -v
 
-# Test hybrid agent directly
-test-hybrid:
-	@echo "Testing hybrid agent..."
+# Test hybrid agent directly (no WebSocket)
+test-agent:
+	@echo "Testing HybridAgent..."
 	python scripts/test_hybrid.py "Hello, what can you help me with?"
 
 # Test hybrid with tool prompt
-test-hybrid-tools:
-	@echo "Testing hybrid agent with tools..."
+test-agent-tools:
+	@echo "Testing HybridAgent with tools..."
 	python scripts/test_hybrid.py "Show me recent incidents"
 
-# Test WebSocket endpoints
+# Test WebSocket endpoint
 test-ws:
-	@echo "Testing WebSocket endpoints..."
-	python scripts/test_websocket.py --endpoint hybrid
-
-# Test all WebSocket endpoints
-test-ws-all:
-	python scripts/test_websocket.py --endpoint all
+	@echo "Testing /ws/chat endpoint..."
+	python scripts/test_websocket.py
 
 # =============================================================================
 # DOCKER
