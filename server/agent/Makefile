@@ -17,17 +17,22 @@
 
 # Default target
 help:
-	@echo "InRes Agent Development Commands"
-	@echo "================================="
+	@echo "InRes Agent Commands"
+	@echo "===================="
+	@echo ""
+	@echo "Production:"
+	@echo "  make prod          Start production services (Docker)"
+	@echo "  make logs-prod     View production logs"
+	@echo "  make stop-prod     Stop production services"
 	@echo ""
 	@echo "Development:"
 	@echo "  make dev           Start local dev server (uvicorn with reload)"
-	@echo "  make dev-docker    Start with Docker Compose"
+	@echo "  make dev-docker    Start with Docker Compose (dev mode)"
 	@echo "  make dev-debug     Start Docker with Redis UI"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test          Run pytest"
-	@echo "  make test-agent    Test HybridAgent directly"
+	@echo "  make test-agent    Test SDKHybridAgent directly"
 	@echo "  make test-ws       Test WebSocket /ws/chat"
 	@echo ""
 	@echo "Docker:"
@@ -44,13 +49,35 @@ help:
 # DEVELOPMENT
 # =============================================================================
 
+# =============================================================================
+# PRODUCTION
+# =============================================================================
+
+# Start production services
+prod:
+	@echo "Starting production services..."
+	docker compose up -d --build
+	@echo "Services started. View logs: make logs-prod"
+
+# View production logs
+logs-prod:
+	docker compose logs -f agent
+
+# Stop production services
+stop-prod:
+	docker compose down
+
+# =============================================================================
+# DEVELOPMENT
+# =============================================================================
+
 # Start local development server (no Docker)
 dev:
 	@echo "Starting development server..."
 	@echo "Make sure ANTHROPIC_API_KEY is set!"
 	uvicorn main:app --host 0.0.0.0 --port 8002 --reload --log-level debug
 
-# Start with Docker Compose
+# Start with Docker Compose (development)
 dev-docker:
 	@echo "Starting Docker Compose development environment..."
 	docker compose -f docker-compose.dev.yaml up --build
@@ -60,7 +87,7 @@ dev-debug:
 	@echo "Starting Docker Compose with Redis UI..."
 	docker compose -f docker-compose.dev.yaml --profile debug up --build
 
-# Start in background
+# Start in background (development)
 dev-bg:
 	docker compose -f docker-compose.dev.yaml up -d --build
 	@echo "Services started in background"
