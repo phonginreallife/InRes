@@ -176,7 +176,7 @@ func checkEnv() {
 
 func fixLineEndings() {
 	log("Fixing line endings...")
-	scriptPath := "../../src/agent/docker-entrypoint.sh"
+	scriptPath := "../../server/agent/docker-entrypoint.sh"
 	content, err := ioutil.ReadFile(scriptPath)
 	if err == nil {
 		newContent := strings.ReplaceAll(string(content), "\r\n", "\n")
@@ -213,15 +213,15 @@ var serviceDockerfiles = map[string]struct {
 	},
 	"api": {
 		context:    "../..", // Project root (Dockerfile expects src/api/ and worker/ dirs)
-		dockerfile: "../../src/api/Dockerfile",
+		dockerfile: "../../server/api/Dockerfile",
 	},
 	"agent": {
-		context:    "../../src/agent",
-		dockerfile: "../../src/agent/Dockerfile",
+		context:    "../../server/agent",
+		dockerfile: "../../server/agent/Dockerfile",
 	},
 	"slack-worker": {
-		context:    "../../src/slack-worker",
-		dockerfile: "../../src/slack-worker/Dockerfile",
+		context:    "../../server/slack-worker",
+		dockerfile: "../../server/slack-worker/Dockerfile",
 	},
 }
 

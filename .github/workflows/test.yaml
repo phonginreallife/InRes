@@ -36,14 +36,14 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache-dependency-path: src/api/go.sum
+          cache-dependency-path: server/api/go.sum
 
       - name: Install dependencies
-        working-directory: src/api
+        working-directory: server/api
         run: go mod download
 
       - name: Run unit tests
-        working-directory: src/api
+        working-directory: server/api
         run: go test -v -race -coverprofile=coverage.out ./...
         env:
           DATABASE_URL: postgres://test:test@localhost:5432/inres_test?sslmode=disable
@@ -51,7 +51,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          file: src/api/coverage.out
+          file: server/api/coverage.out
           flags: api
           fail_ci_if_error: false
 
@@ -101,12 +101,12 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        working-directory: src/agent
+        working-directory: server/agent
         run: |
           pip install -r requirements.txt
           pip install pytest pytest-cov
 
       - name: Run tests
-        working-directory: src/agent
+        working-directory: server/agent
         run: pytest --cov=. --cov-report=xml
         continue-on-error: true

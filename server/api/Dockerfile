@@ -9,11 +9,11 @@ RUN apk add --no-cache git
 
 # Cache dependencies
 # Context is set to project root (../../) in docker-compose.yaml
-COPY src/api/go.mod src/api/go.sum ./
+COPY server/api/go.mod server/api/go.sum ./
 RUN go mod download
 
 # Copy source and build both binaries (server and worker)
-COPY src/api/ .
+COPY server/api/ .
 RUN go build -o /out/server ./cmd/server && \
     go build -o /out/worker ./cmd/worker
 

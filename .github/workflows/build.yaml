@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
+      - 'server/**'
       - 'frontend/**'
     tags:
       - 'v*'
   pull_request:
     branches: [main]
     paths:
-      - 'src/**'
+      - 'server/**'
       - 'frontend/**'
   workflow_dispatch:
 
@@ -36,16 +36,16 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
-          cache-dependency-path: src/api/go.sum
+          cache-dependency-path: server/api/go.sum
 
       - name: Run tests
-        working-directory: src/api
+        working-directory: server/api
         run: go test -race -coverprofile=coverage.out ./...
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          file: src/api/coverage.out
+          file: server/api/coverage.out
           flags: api
         continue-on-error: true
 
@@ -87,19 +87,19 @@ jobs:
         include:
           - name: api
             context: .
-            dockerfile: src/api/Dockerfile
+            dockerfile: server/api/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-api
           - name: agent
-            context: src/agent
-            dockerfile: src/agent/Dockerfile
+            context: server/agent
+            dockerfile: server/agent/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-agent
           - name: frontend
             context: frontend/inres
             dockerfile: frontend/inres/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-frontend
           - name: slack-worker
-            context: src/slack-worker
-            dockerfile: src/slack-worker/Dockerfile
+            context: server/slack-worker
+            dockerfile: server/slack-worker/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/inres-slack-worker
           # Note: worker/ is a Cloudflare Worker, deployed via wrangler, not Docker
 
