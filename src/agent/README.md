@@ -63,7 +63,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Set config path (shared with Go API)
-export inres_CONFIG_PATH=../api/cmd/server/dev.config.yaml
+export inres_CONFIG_PATH=../src/api/cmd/server/dev.config.yaml
 
 # Run the server
 uvicorn main:app --host 0.0.0.0 --port 8002 --reload
